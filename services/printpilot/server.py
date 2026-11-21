@@ -19,7 +19,9 @@ Configuration (JSON file, path in env PRINTPILOT_CONFIG or first CLI arg):
   host, port, data_dir,
   manager_token, device_token,
   ai_base_url, ai_key, ai_model, vision_model,
-  webhook_url, telegram_bot_token, telegram_chat_id
+  webhook_url, telegram_bot_token, telegram_chat_id,
+  tailscale_allowed_users (list of Tailscale login names allowed to manage
+  without a token), tailscale_socket
 """
 
 from __future__ import annotations
@@ -37,6 +39,7 @@ import os
 import queue
 import secrets
 import re
+import socket
 import sqlite3
 import sys
 import threading
@@ -77,7 +80,26 @@ RETENTION_SECS = 14 * 86400
 # Allowed objectives / triggers
 VALID_OBJECTIVES = {"quality", "strength", "speed", "economy"}
 VALID_TRIGGERS   = {"manual", "send"}
-VALID_STATUSES   = {"printing", "idle", "unknown"}
+VALID_STATUSES   = {"printing", "idle", "paused", "error", "unknown"}
+
+# Printer telemetry accepted from the bridge (MQTT read-only); anything else is dropped
+_TELEMETRY_NUMERIC = {"nozzle_temp", "bed_temp", "nozzle_target", "bed_target", "progress",
+                      "current_layer", "total_layers", "remaining_min", "fan_speed",
+                      "print_error", "frame_size", "itrack"}
+_TELEMETRY_TEXT = {"gcode_state": 32, "job_name": 120}
+
+
+def clean_telemetry(raw: Any) -> dict:
+    out: dict = {}
+    if not isinstance(raw, dict):
+        return out
+    for key, value in raw.items():
+        if key in _TELEMETRY_NUMERIC and isinstance(value, (int, float)) and not isinstance(value, bool):
+            if math.isfinite(value):
+                out[key] = value
+        elif key in _TELEMETRY_TEXT and isinstance(value, str):
+            out[key] = value[:_TELEMETRY_TEXT[key]]
+    return out
 
 # Numeric Bambu Studio settings eligible for application: key -> (min, max, integer)
 SETTINGS_ALLOWLIST: dict[str, tuple[float, float, bool]] = {
@@ -110,7 +132,65 @@ def load_config(path: str) -> dict[str, Any]:
         raise ValueError("Tokens must be non-empty strings")
     if cfg["manager_token"] == cfg["device_token"]:
         raise ValueError("manager_token and device_token must differ")
+    users = cfg.get("tailscale_allowed_users", [])
+    if not isinstance(users, list) or not all(isinstance(u, str) and u.strip() for u in users):
+        raise ValueError("tailscale_allowed_users must be a list of login names")
+    cfg["tailscale_allowed_users"] = [u.strip().lower() for u in users]
     return cfg
+
+
+# ---------------------------------------------------------------------------
+# Tailscale identity (dashboard login without a token)
+# ---------------------------------------------------------------------------
+
+DEFAULT_TAILSCALE_SOCKET = "/var/run/tailscale/tailscaled.sock"
+_WHOIS_TTL = 60.0
+_whois_cache: dict[str, tuple[float, dict | None]] = {}
+_whois_lock = threading.Lock()
+
+
+class _UnixHTTPConnection(http.client.HTTPConnection):
+    def __init__(self, socket_path: str, timeout: float = 3.0):
+        super().__init__("local-tailscaled.sock", timeout=timeout)
+        self._socket_path = socket_path
+
+    def connect(self) -> None:
+        sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        sock.settimeout(self.timeout)
+        sock.connect(self._socket_path)
+        self.sock = sock
+
+
+def tailscale_whois(ip: str, socket_path: str = DEFAULT_TAILSCALE_SOCKET) -> dict | None:
+    """Return {"login": ..., "node": ...} for a tailnet IP, or None. Cached briefly."""
+    now = time.monotonic()
+    with _whois_lock:
+        hit = _whois_cache.get(ip)
+        if hit and now - hit[0] < _WHOIS_TTL:
+            return hit[1]
+    result = None
+    conn = None
+    try:
+        conn = _UnixHTTPConnection(socket_path)
+        conn.request("GET", "/localapi/v0/whois?addr=" + urllib.parse.quote(f"{ip}:1"),
+                     headers={"Host": "local-tailscaled.sock"})
+        resp = conn.getresponse()
+        body = resp.read()
+        if resp.status == 200:
+            data = json.loads(body)
+            login = str((data.get("UserProfile") or {}).get("LoginName") or "").lower()
+            node = str((data.get("Node") or {}).get("ComputedName") or "")
+            if login:
+                result = {"login": login, "node": node}
+    except (OSError, ValueError, http.client.HTTPException) as exc:
+        log.warning("Tailscale whois failed: %s", type(exc).__name__)
+        return None  # do not cache transient failures
+    finally:
+        if conn is not None:
+            conn.close()
+    with _whois_lock:
+        _whois_cache[ip] = (now, result)
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -153,6 +233,17 @@ CREATE TABLE IF NOT EXISTS devices (
     printer_id  TEXT,
     last_seen   TEXT NOT NULL,
     last_status TEXT NOT NULL,
+    last_error  TEXT
+);
+
+CREATE TABLE IF NOT EXISTS printers (
+    printer_id  TEXT PRIMARY KEY,
+    device_id   TEXT,
+    name        TEXT,
+    model       TEXT,
+    last_seen   TEXT NOT NULL,
+    status      TEXT NOT NULL,
+    telemetry   TEXT,          -- JSON object (latest)
     last_error  TEXT
 );
 
@@ -739,7 +830,8 @@ def ai_vision(cfg: dict, image_b64: str, context: dict) -> dict:
         '{"ok": true|false, "issues": ["string",...], "summary": "string"}\n'
         "'ok' is true if the print looks normal. "
         "'issues' lists observed problems. "
-        "'summary' is one sentence."
+        "'summary' is one sentence. "
+        "Write 'issues' and 'summary' in Vietnamese."
     )
 
     ctx_text = f"Device: {context.get('device_id','?')}, Printer: {context.get('printer_id','?')}, Status: {context.get('status','?')}"
@@ -1045,7 +1137,7 @@ class VisionWorker(threading.Thread):
             # Raise alert if issues found
             if not result.get("ok"):
                 issues = result.get("issues", [])
-                msg = "Vision alert: " + ("; ".join(issues) if issues else result.get("summary", "Issue detected"))
+                msg = "Camera phát hiện sự cố: " + ("; ".join(issues) if issues else result.get("summary", "Có bất thường"))
                 alert_id = upsert_alert(
                     conn, "vision", "warning", msg,
                     row["device_id"], row["printer_id"], snapshot_id
@@ -1141,7 +1233,7 @@ class HeartbeatMonitor(threading.Thread):
             "SELECT * FROM devices WHERE last_seen < ?", (stale_cutoff,)
         ).fetchall()
         for row in rows:
-            msg = f"Device {row['device_id']} has not sent heartbeat since {row['last_seen']}"
+            msg = f"Thiết bị {row['device_id']} không gửi tín hiệu từ {row['last_seen']}"
             alert_id = upsert_alert(
                 conn, "heartbeat", "warning", msg,
                 row["device_id"], row["printer_id"]
@@ -1203,7 +1295,38 @@ class PrintPilotHandler(http.server.BaseHTTPRequestHandler):
     # --- Auth -----------------------------------------------------------
 
     def _auth_manager(self) -> bool:
-        return self._check_token(self.cfg["manager_token"])
+        if self._check_token(self.cfg["manager_token"]):
+            return True
+        return self._tailscale_user() is not None
+
+    def _client_ip(self) -> str:
+        """Peer IP; behind the local reverse proxy (Caddy), the last X-Forwarded-For hop."""
+        peer = self.client_address[0]
+        trusted = {"127.0.0.1", "::1", str(self.cfg.get("host", ""))}
+        if peer in trusted:
+            xff = self.headers.get("X-Forwarded-For", "")
+            hops = [h.strip() for h in xff.split(",") if h.strip()]
+            if hops:
+                return hops[-1]
+        return peer
+
+    def _tailscale_user(self) -> dict | None:
+        allowed = self.cfg.get("tailscale_allowed_users") or []
+        if not allowed:
+            return None
+        # Ambient (IP-based) auth: state-changing requests must prove same-origin
+        # so another site open in the browser cannot trigger them (CSRF).
+        if self.command not in ("GET", "HEAD"):
+            if self.headers.get("X-PrintPilot-Request") != "1":
+                return None
+            site = self.headers.get("Sec-Fetch-Site")
+            if site and site not in ("same-origin", "none"):
+                return None
+        ident = tailscale_whois(self._client_ip(),
+                                self.cfg.get("tailscale_socket", DEFAULT_TAILSCALE_SOCKET))
+        if ident and ident["login"] in allowed:
+            return ident
+        return None
 
     def _auth_device(self) -> bool:
         token = self._get_bearer()
@@ -1289,6 +1412,8 @@ class PrintPilotHandler(http.server.BaseHTTPRequestHandler):
         try:
             if path == "/health":
                 self._handle_health()
+            elif path == "/api/whoami":
+                self._handle_whoami()
             elif path == "/api/state":
                 self._require_manager(self._handle_state)
             elif path.startswith("/api/images/"):
@@ -1332,6 +1457,17 @@ class PrintPilotHandler(http.server.BaseHTTPRequestHandler):
 
     # --- Endpoint handlers ----------------------------------------------
 
+    def _handle_whoami(self) -> None:
+        ident = self._tailscale_user()
+        if ident:
+            self._send_json(200, {"authenticated": True, "method": "tailscale",
+                                  "user": ident["login"], "node": ident["node"]})
+        elif self._check_token(self.cfg["manager_token"]):
+            self._send_json(200, {"authenticated": True, "method": "token"})
+        else:
+            self._send_json(200, {"authenticated": False,
+                                  "tailscale_enabled": bool(self.cfg.get("tailscale_allowed_users"))})
+
     def _handle_health(self) -> None:
         self._send_json(200, {"status": "ok", "time": _now_iso()})
 
@@ -1343,8 +1479,8 @@ class PrintPilotHandler(http.server.BaseHTTPRequestHandler):
         ).fetchall()
         snapshots = db.execute(
             """SELECT id, created_at, device_id, printer_id, captured_at,
-                      status, vision_status, vision_result
-               FROM snapshots ORDER BY created_at DESC LIMIT 50"""
+                      status, telemetry, vision_status, vision_result
+               FROM snapshots ORDER BY created_at DESC LIMIT 100"""
         ).fetchall()
         alerts = db.execute(
             """SELECT id, created_at, source, severity, message,
@@ -1353,6 +1489,10 @@ class PrintPilotHandler(http.server.BaseHTTPRequestHandler):
         ).fetchall()
         devices = db.execute(
             "SELECT device_id, printer_id, last_seen, last_status, last_error FROM devices"
+        ).fetchall()
+        printers = db.execute(
+            """SELECT printer_id, device_id, name, model, last_seen, status, telemetry, last_error
+               FROM printers ORDER BY printer_id"""
         ).fetchall()
 
         def row_to_dict(r):
@@ -1371,6 +1511,10 @@ class PrintPilotHandler(http.server.BaseHTTPRequestHandler):
         snapshot_rows = []
         for row in snapshots:
             item = dict(row)
+            try:
+                item["telemetry"] = json.loads(item["telemetry"]) if item["telemetry"] else {}
+            except json.JSONDecodeError:
+                item["telemetry"] = {}
             if item["vision_status"] == "complete":
                 try:
                     item["vision_result"] = json.loads(item["vision_result"])
@@ -1380,6 +1524,14 @@ class PrintPilotHandler(http.server.BaseHTTPRequestHandler):
             snapshot_rows.append(item)
         stale_cutoff = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(time.time() - HEARTBEAT_STALE_SECS))
         device_rows = [dict(row, stale=row["last_seen"] < stale_cutoff) for row in devices]
+        printer_rows = []
+        for row in printers:
+            item = dict(row, stale=row["last_seen"] < stale_cutoff)
+            try:
+                item["telemetry"] = json.loads(item["telemetry"]) if item["telemetry"] else {}
+            except json.JSONDecodeError:
+                item["telemetry"] = {}
+            printer_rows.append(item)
 
         cfg = self.cfg
         config_info = {
@@ -1393,6 +1545,7 @@ class PrintPilotHandler(http.server.BaseHTTPRequestHandler):
             "snapshots": snapshot_rows,
             "alerts":    [row_to_dict(r) for r in alerts],
             "devices": device_rows,
+            "printers": printer_rows,
             "config":    config_info,
         })
 
@@ -1580,6 +1733,7 @@ class PrintPilotHandler(http.server.BaseHTTPRequestHandler):
         if not isinstance(telemetry, dict):
             self._send_error(400, "'telemetry' must be a JSON object")
             return
+        telemetry = clean_telemetry(telemetry)
 
         # Decode image
         try:
@@ -1658,6 +1812,9 @@ class PrintPilotHandler(http.server.BaseHTTPRequestHandler):
         printer_id = data.get("printer_id")
         status     = data.get("status", "unknown")
         error      = data.get("error")  # optional
+        telemetry  = data.get("telemetry", {})
+        name       = data.get("printer_name", "")
+        model      = data.get("printer_model", "")
 
         if not device_id or not isinstance(device_id, str):
             self._send_error(400, "'device_id' must be a non-empty string")
@@ -1671,6 +1828,13 @@ class PrintPilotHandler(http.server.BaseHTTPRequestHandler):
         if error is not None and not isinstance(error, str):
             self._send_error(400, "'error' must be a string if provided")
             return
+        if not isinstance(telemetry, dict):
+            self._send_error(400, "'telemetry' must be a JSON object")
+            return
+        if not isinstance(name, str) or not isinstance(model, str):
+            self._send_error(400, "'printer_name'/'printer_model' must be strings")
+            return
+        telemetry = clean_telemetry(telemetry)
         # Reject anything that looks like a secret (key/token in the payload)
         for field in ("key", "token", "secret", "password", "api_key"):
             if field in data:
@@ -1688,11 +1852,56 @@ class PrintPilotHandler(http.server.BaseHTTPRequestHandler):
                  last_error=excluded.last_error""",
             (device_id, printer_id, now, status, error),
         )
+        prev = self.db.execute(
+            "SELECT telemetry, status FROM printers WHERE printer_id=?", (printer_id,)
+        ).fetchone()
+        if not telemetry and prev and prev["telemetry"]:
+            # Keep last known numbers on camera-only heartbeats; status says if fresh
+            telemetry_json = prev["telemetry"]
+        else:
+            telemetry_json = json.dumps(telemetry)
+        self.db.execute(
+            """INSERT INTO printers (printer_id, device_id, name, model, last_seen, status, telemetry, last_error)
+               VALUES (?,?,?,?,?,?,?,?)
+               ON CONFLICT(printer_id) DO UPDATE SET
+                 device_id=excluded.device_id,
+                 name=COALESCE(NULLIF(excluded.name,''), printers.name),
+                 model=COALESCE(NULLIF(excluded.model,''), printers.model),
+                 last_seen=excluded.last_seen,
+                 status=excluded.status,
+                 telemetry=excluded.telemetry,
+                 last_error=excluded.last_error""",
+            (printer_id, device_id, name[:80], model[:40], now, status, telemetry_json, error),
+        )
         self.db.commit()
+
+        # Printer-reported failure (MQTT print_error / FAILED state)
+        print_error = telemetry.get("print_error")
+        newly_failed = prev is None or prev["status"] != "error"
+        if (print_error or status == "error") and newly_failed:
+            label = name or printer_id
+            code = f" (mã lỗi {print_error})" if print_error else ""
+            msg = f"Máy in {label} báo lỗi khi in{code}"
+            alert_id = upsert_alert(self.db, "printer", "critical", msg, device_id, printer_id)
+            if alert_id:
+                alert_row = self.db.execute("SELECT * FROM alerts WHERE id=?", (alert_id,)).fetchone()
+                if alert_row:
+                    send_webhook(self.cfg, alert_row, self.db)
+
+        # A healthy heartbeat resolves this device's earlier heartbeat alerts
+        # (stale-heartbeat / reported-error); vision alerts stay for a human.
+        if not error:
+            self.db.execute(
+                """UPDATE alerts SET acknowledged=1
+                   WHERE source='heartbeat' AND device_id=? AND acknowledged=0
+                     AND (printer_id=? OR message LIKE '%không gửi tín hiệu%')""",
+                (device_id, printer_id),
+            )
+            self.db.commit()
 
         # Raise alert if device reported error
         if error:
-            msg = f"Device {device_id} reported error: {error[:500]}"
+            msg = f"Thiết bị {device_id} báo lỗi: {error[:500]}"
             alert_id = upsert_alert(
                 self.db, "heartbeat", "error", msg, device_id, printer_id
             )

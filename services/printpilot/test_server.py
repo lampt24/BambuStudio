@@ -1575,5 +1575,145 @@ class TestTelegram(unittest.TestCase):
         self.assertEqual((row["webhook_sent"], row["webhook_retries"]), (0, 1))
 
 
+# ---------------------------------------------------------------------------
+# Tailscale identity login
+# ---------------------------------------------------------------------------
+
+class TestTailscaleAuth(unittest.TestCase):
+    """Peer 127.0.0.1 is the trusted proxy, so X-Forwarded-For names the client."""
+
+    IDENTS = {
+        "100.104.17.115": {"login": "owner@example.com", "node": "macbook"},
+        "100.99.0.9": {"login": "stranger@example.com", "node": "other"},
+    }
+
+    def setUp(self):
+        from unittest import mock
+        import server
+        self._tmpdir = tempfile.mkdtemp(prefix="printpilot_ts_")
+        self._cfg = _make_config(self._tmpdir)
+        self._cfg["tailscale_allowed_users"] = ["owner@example.com"]
+        self._patch = mock.patch.object(server, "tailscale_whois",
+                                        side_effect=lambda ip, sock=None: self.IDENTS.get(ip))
+        self._patch.start()
+        self._server, self._port = _start_server(self._cfg, self._tmpdir)
+
+    def tearDown(self):
+        self._patch.stop()
+        self._server.shutdown()
+        self._server.server_close()
+
+    def _call(self, method, path, xff=None, extra=None):
+        conn = http.client.HTTPConnection("127.0.0.1", self._port, timeout=10)
+        headers = dict(extra or {})
+        if xff:
+            headers["X-Forwarded-For"] = xff
+        if method == "POST":
+            headers["Content-Length"] = "0"
+        conn.request(method, path, headers=headers)
+        resp = conn.getresponse()
+        return resp.status, json.loads(resp.read() or b"{}")
+
+    def test_allowed_user_reads_state_without_token(self):
+        status, _ = self._call("GET", "/api/state", xff="100.104.17.115")
+        self.assertEqual(status, 200)
+
+    def test_whoami_reports_user(self):
+        status, body = self._call("GET", "/api/whoami", xff="100.104.17.115")
+        self.assertEqual((status, body["method"], body["user"]), (200, "tailscale", "owner@example.com"))
+
+    def test_not_allowed_user_rejected(self):
+        status, _ = self._call("GET", "/api/state", xff="100.99.0.9")
+        self.assertEqual(status, 401)
+
+    def test_unknown_ip_rejected(self):
+        status, _ = self._call("GET", "/api/state", xff="203.0.113.5")
+        self.assertEqual(status, 401)
+
+    def test_spoofed_xff_uses_last_hop(self):
+        status, _ = self._call("GET", "/api/state", xff="100.104.17.115, 100.99.0.9")
+        self.assertEqual(status, 401)
+
+    def test_write_requires_same_origin_marker(self):
+        status, _ = self._call("POST", "/api/alerts/x/ack", xff="100.104.17.115")
+        self.assertEqual(status, 401)
+        status, _ = self._call("POST", "/api/alerts/x/ack", xff="100.104.17.115",
+                               extra={"X-PrintPilot-Request": "1", "Sec-Fetch-Site": "cross-site"})
+        self.assertEqual(status, 401)
+        status, _ = self._call("POST", "/api/alerts/x/ack", xff="100.104.17.115",
+                               extra={"X-PrintPilot-Request": "1", "Sec-Fetch-Site": "same-origin"})
+        self.assertNotEqual(status, 401)
+
+    def test_device_endpoints_still_need_device_token(self):
+        status, _ = self._call("POST", "/api/heartbeat", xff="100.104.17.115",
+                               extra={"X-PrintPilot-Request": "1"})
+        self.assertEqual(status, 401)
+
+    def test_disabled_without_allowlist(self):
+        self._cfg["tailscale_allowed_users"] = []
+        status, _ = self._call("GET", "/api/state", xff="100.104.17.115")
+        self.assertEqual(status, 401)
+
+
+class TestHeartbeatAutoResolve(ServerTestCase):
+    def _hb(self, **extra):
+        data = {"device_id": "redmi-9c", "printer_id": "a1-01", "status": "unknown"}
+        data.update(extra)
+        return _jreq(self._port, "POST", "/api/heartbeat", data, token=DEVICE_TOKEN)
+
+    def _open_alerts(self):
+        resp = _req(self._port, "GET", "/api/state")
+        state = json.loads(resp.read())
+        return [a for a in state["alerts"] if not a["acknowledged"]]
+
+    def test_healthy_heartbeat_resolves_previous_error(self):
+        self.assertEqual(self._hb(error="printer not configured")[0], 200)
+        self.assertEqual(len(self._open_alerts()), 1)
+        self.assertEqual(self._hb()[0], 200)
+        self.assertEqual(self._open_alerts(), [])
+
+
+class TestPrinters(ServerTestCase):
+    def _hb(self, printer_id, **extra):
+        data = {"device_id": "redmi-9c", "printer_id": printer_id, "status": "printing"}
+        data.update(extra)
+        return _jreq(self._port, "POST", "/api/heartbeat", data, token=DEVICE_TOKEN)[0]
+
+    def _state(self):
+        return json.loads(_req(self._port, "GET", "/api/state").read())
+
+    def test_multiple_printers_with_telemetry(self):
+        self.assertEqual(self._hb("a1-01", printer_name="A1 bàn trái", printer_model="A1",
+                                  telemetry={"nozzle_temp": 245.0, "progress": 97,
+                                             "job_name": "vase", "evil": {"x": 1}}), 200)
+        self.assertEqual(self._hb("p1s-01", status="idle", telemetry={"bed_temp": 25}), 200)
+        printers = {p["printer_id"]: p for p in self._state()["printers"]}
+        self.assertEqual(set(printers), {"a1-01", "p1s-01"})
+        a1 = printers["a1-01"]
+        self.assertEqual((a1["name"], a1["model"], a1["status"]), ("A1 bàn trái", "A1", "printing"))
+        self.assertEqual(a1["telemetry"], {"nozzle_temp": 245.0, "progress": 97, "job_name": "vase"})
+        self.assertEqual(printers["p1s-01"]["status"], "idle")
+
+    def test_camera_only_heartbeat_keeps_last_telemetry(self):
+        self._hb("a1-01", telemetry={"progress": 50})
+        self._hb("a1-01", status="unknown")
+        a1 = self._state()["printers"][0]
+        self.assertEqual((a1["status"], a1["telemetry"]["progress"]), ("unknown", 50))
+
+    def test_printer_error_alert_is_edge_triggered(self):
+        self._hb("a1-01", status="error", telemetry={"print_error": 50348044})
+        alerts = [a for a in self._state()["alerts"] if a["source"] == "printer"]
+        self.assertEqual(len(alerts), 1)
+        self.assertIn("50348044", alerts[0]["message"])
+        _req(self._port, "POST", f"/api/alerts/{alerts[0]['id']}/ack", body=b"").read()
+        self._hb("a1-01", status="error", telemetry={"print_error": 50348044})
+        open_alerts = [a for a in self._state()["alerts"]
+                       if a["source"] == "printer" and not a["acknowledged"]]
+        self.assertEqual(open_alerts, [])
+
+    def test_invalid_status_rejected(self):
+        self.assertEqual(self._hb("a1-01", status="exploded"), 400)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

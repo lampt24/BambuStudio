@@ -4,7 +4,7 @@ Supports external configuration files (JSON) and environment variable overrides.
 Never commits or logs secrets in the repository or console.
 """
 
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field, replace
 import json
 import logging
 import os
@@ -58,6 +58,52 @@ class BridgeConfig:
     read_timeout: float = 15.0
     max_retries: int = 3
     discard_initial_frame: bool = True
+
+    # Printer identity / telemetry (MQTT 8883, read-only; works in cloud mode)
+    printer_serial: Optional[str] = None
+    printer_name: str = ""
+    printer_model: str = ""
+    telemetry_enabled: bool = True
+
+    # Multiple printers: list of per-printer overrides. Keys may be short
+    # (id, host, access_code, serial, name, model, cert_fingerprint, port) or
+    # the full printer_* names. Empty list = single printer from the fields above.
+    printers: List[Dict[str, Any]] = field(default_factory=list)
+
+    _PRINTER_KEYS = {
+        "id": "printer_id", "host": "printer_host", "access_code": "printer_access_code",
+        "serial": "printer_serial", "name": "printer_name", "model": "printer_model",
+        "port": "printer_port", "username": "printer_username",
+        "cert_fingerprint": "cert_fingerprint", "telemetry_enabled": "telemetry_enabled",
+    }
+
+    def printer_configs(self) -> List["BridgeConfig"]:
+        """One BridgeConfig per printer (shared server/timing settings)."""
+        if not self.printers:
+            return [self]
+        result: List[BridgeConfig] = []
+        seen = set()
+        for i, entry in enumerate(self.printers):
+            if not isinstance(entry, dict):
+                raise ConfigError(f"printers[{i}] must be an object")
+            overrides: Dict[str, Any] = {}
+            for key, value in entry.items():
+                target = self._PRINTER_KEYS.get(key, key)
+                if target not in self._PRINTER_KEYS.values():
+                    raise ConfigError(f"printers[{i}]: unknown key {key!r}")
+                overrides[target] = value
+            if "printer_port" in overrides:
+                overrides["printer_port"] = int(overrides["printer_port"])
+            if "telemetry_enabled" in overrides:
+                overrides["telemetry_enabled"] = _parse_bool(overrides["telemetry_enabled"])
+            cfg = replace(self, printers=[], **overrides)
+            if not cfg.printer_id:
+                raise ConfigError(f"printers[{i}]: id is required")
+            if cfg.printer_id in seen:
+                raise ConfigError(f"duplicate printer id {cfg.printer_id!r}")
+            seen.add(cfg.printer_id)
+            result.append(cfg)
+        return result
 
     @staticmethod
     def is_dummy_host(host: str) -> bool:
@@ -137,6 +183,11 @@ class BridgeConfig:
                 d["printer_access_code"] = "********"
             if d.get("device_token"):
                 d["device_token"] = "********"
+            d["printers"] = [
+                {k: ("********" if k in ("access_code", "printer_access_code") and v else v)
+                 for k, v in p.items()} if isinstance(p, dict) else p
+                for p in d.get("printers") or []
+            ]
         return d
 
     def __repr__(self) -> str:
@@ -236,6 +287,11 @@ def load_config(
             read_timeout=float(raw_config.get("read_timeout", 15.0)),
             max_retries=int(raw_config.get("max_retries", 3)),
             discard_initial_frame=_parse_bool(raw_config.get("discard_initial_frame", True)),
+            printer_serial=raw_config.get("printer_serial"),
+            printer_name=raw_config.get("printer_name", ""),
+            printer_model=raw_config.get("printer_model", ""),
+            telemetry_enabled=_parse_bool(raw_config.get("telemetry_enabled", True)),
+            printers=list(raw_config.get("printers") or []),
         )
     except Exception as e:
         raise ConfigError(f"Error constructing BridgeConfig: {e}") from e

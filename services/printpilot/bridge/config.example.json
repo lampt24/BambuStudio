@@ -2,26 +2,34 @@
   "_comment": "PrintPilot A1 Camera Bridge Template Configuration",
   "_security_notice": "Copy this file to ~/.config/printpilot/bridge.json and protect it with chmod 600. Never commit real credentials to git.",
   "_printer_notice": "Printer must stay CLOUD-connected for Bambu Handy. LAN Only mode is NOT required for local reading.",
-
   "printer_host": "",
   "printer_port": 6000,
   "printer_username": "bblp",
   "printer_access_code": "",
   "printer_id": "a1-01",
-
   "server_url": "http://127.0.0.1:8000",
   "device_id": "redmi-bridge-01",
   "device_token": "",
-
   "cert_fingerprint": null,
   "ca_cert_path": null,
   "insecure_skip_verify": true,
-
   "snapshot_interval_seconds": 120,
   "heartbeat_interval_seconds": 30,
   "max_frame_bytes": 5242880,
   "connect_timeout": 10.0,
   "read_timeout": 15.0,
   "max_retries": 3,
-  "discard_initial_frame": true
+  "discard_initial_frame": true,
+  "_printers_notice": "For several printers fill 'printers' (each: id, host, access_code, cert_fingerprint, name, model, optional serial). Leave it empty to use the single printer_* fields above.",
+  "printers": [
+    {
+      "id": "a1-01",
+      "name": "Bambu A1",
+      "model": "A1",
+      "host": "",
+      "access_code": "",
+      "cert_fingerprint": null
+    }
+  ],
+  "telemetry_enabled": true
 }

@@ -1723,3 +1723,132 @@ body {
     scroll-behavior: auto !important;
   }
 }
+
+/* ===== Printer fleet ===== */
+.printers-section {
+  margin-bottom: 24px;
+}
+
+.printers-empty {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  padding: 8px 0;
+}
+
+.printers-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 16px;
+}
+
+.printer-card {
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  background-color: var(--bg-surface-sunken);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  cursor: pointer;
+  min-width: 0;
+  transition: border-color var(--transition-fast), background-color var(--transition-fast);
+}
+
+.printer-card:hover {
+  border-color: var(--border-strong);
+  background-color: var(--bg-surface-hover);
+}
+
+.printer-card:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
+}
+
+.printer-card[aria-selected="true"] {
+  border-color: var(--accent-green);
+  box-shadow: 0 0 0 1px var(--accent-green-glow);
+}
+
+.printer-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.printer-card-name {
+  font-weight: 600;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.printer-card-meta {
+  font-size: 0.72rem;
+  color: var(--text-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.printer-card-job {
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.printer-progress {
+  height: 6px;
+  border-radius: 999px;
+  background-color: var(--bg-surface-elevated);
+  overflow: hidden;
+}
+
+.printer-progress-bar {
+  height: 100%;
+  background-color: var(--status-cyan);
+  border-radius: 999px;
+  transition: width 0.4s ease;
+}
+
+.printer-card-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.printer-stat-label {
+  display: block;
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-dim);
+}
+
+.printer-stat-value {
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  color: var(--text-primary);
+}
+
+.printer-card-error {
+  font-size: 0.75rem;
+  color: var(--status-rose);
+}
+
+@media (max-width: 640px) {
+  .printers-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.printer-card-head .badge {
+  white-space: nowrap;
+  flex-shrink: 0;
+}

@@ -188,6 +188,30 @@
       </div>
     </div>
 
+    <!-- SECTION: Printer fleet -->
+    <section id="section-printers" class="card dashboard-section printers-section" aria-labelledby="heading-printers">
+      <div class="card-header">
+        <div class="section-title-wrap">
+          <div class="section-icon" aria-hidden="true">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/>
+            </svg>
+          </div>
+          <div>
+            <h2 id="heading-printers" class="card-title">Máy In</h2>
+            <p class="card-subtitle">Chọn một máy để xem camera và thông số chi tiết</p>
+          </div>
+        </div>
+        <div class="card-header-actions">
+          <span id="printers-count-badge" class="badge badge-muted">0 máy</span>
+        </div>
+      </div>
+      <div class="card-body">
+        <div id="printers-empty" class="printers-empty">Chưa có máy in nào gửi dữ liệu. Thêm máy in vào cấu hình cầu nối trên Redmi.</div>
+        <div id="printers-grid" class="printers-grid" role="listbox" aria-label="Danh sách máy in"></div>
+      </div>
+    </section>
+
     <!-- Dual Column Grid -->
     <div class="dashboard-grid">
 
@@ -205,7 +229,7 @@
                 </svg>
               </div>
               <div>
-                <h2 id="heading-camera" class="card-title">Camera Giám Sát In 3D (Redmi 9C)</h2>
+                <h2 id="heading-camera" class="card-title">Camera Giám Sát In 3D</h2>
                 <p class="card-subtitle">Ảnh chụp định kỳ 120 giây từ cầu nối camera</p>
               </div>
             </div>

@@ -165,6 +165,9 @@ class PrintPilotApiClient:
         printer_id: str,
         status: str = "unknown",
         error: Optional[str] = None,
+        telemetry: Optional[Dict[str, Any]] = None,
+        printer_name: str = "",
+        printer_model: str = "",
     ) -> Dict[str, Any]:
         """Post heartbeat status to POST /api/heartbeat.
 
@@ -183,6 +186,12 @@ class PrintPilotApiClient:
         }
         if error:
             payload["error"] = sanitize_message(error)
+        if telemetry:
+            payload["telemetry"] = telemetry
+        if printer_name:
+            payload["printer_name"] = printer_name[:80]
+        if printer_model:
+            payload["printer_model"] = printer_model[:40]
 
         logger.debug(
             "Sending heartbeat for printer %s (device %s, status=%s)",

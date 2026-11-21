@@ -14,6 +14,8 @@
   // --- Application State ---
   const state = {
     token: sessionStorage.getItem(STORAGE_KEY_TOKEN) || '',
+    // Tailscale identity (set from /api/whoami); when present no token is needed
+    tsUser: '',
     refreshIntervalMs: parseInt(sessionStorage.getItem(STORAGE_KEY_REFRESH_INTERVAL) || '10000', 10),
     refreshTimer: null,
     isSyncing: false,
@@ -23,6 +25,7 @@
       snapshots: [],
       alerts: [],
       devices: [],
+      printers: [],
       config: {
         ai_configured: false,
         vision_configured: false,
@@ -30,6 +33,9 @@
       }
     },
     selectedSnapshotId: null,
+    selectedPrinterId: null,
+    // true only after the user picks an older thumbnail; otherwise follow the newest
+    snapshotPinned: false,
     alertFilter: 'unack', // 'unack' | 'all'
     activeObjectUrls: new Set()
   };
@@ -74,6 +80,10 @@
 
     // Camera Section
     cameraFreshnessBadge: document.getElementById('camera-freshness-badge'),
+    headingCamera: document.getElementById('heading-camera'),
+    printersGrid: document.getElementById('printers-grid'),
+    printersEmpty: document.getElementById('printers-empty'),
+    printersCountBadge: document.getElementById('printers-count-badge'),
     btnExpandSnapshot: document.getElementById('btn-expand-snapshot'),
     cameraLoading: document.getElementById('camera-loading'),
     cameraEmpty: document.getElementById('camera-empty'),
@@ -214,6 +224,8 @@
         return { label: 'Đang in', className: 'badge-cyan' };
       case 'idle':
         return { label: 'Đang rảnh', className: 'badge-green' };
+      case 'paused':
+        return { label: 'Tạm dừng', className: 'badge-amber' };
       case 'complete':
         return { label: 'Hoàn thành', className: 'badge-green' };
       case 'error':
@@ -341,14 +353,22 @@
     return path.startsWith('/') ? path : '/' + path;
   }
 
+  function isAuthenticated() {
+    return Boolean(state.token || state.tsUser);
+  }
+
   async function apiFetch(path, options = {}) {
-    if (!state.token) {
+    if (!isAuthenticated()) {
       throw new Error('NO_TOKEN');
     }
 
     const url = getApiUrl(path);
     const headers = new Headers(options.headers || {});
-    headers.set('Authorization', `Bearer ${state.token}`);
+    if (state.token) {
+      headers.set('Authorization', `Bearer ${state.token}`);
+    }
+    // Same-origin marker required by the server for Tailscale-authenticated writes
+    headers.set('X-PrintPilot-Request', '1');
 
     if (options.body && typeof options.body === 'string' && !headers.has('Content-Type')) {
       headers.set('Content-Type', 'application/json');
@@ -402,9 +422,16 @@
   // --- UI Update & Rendering Logic ---
 
   function updateAuthUI() {
-    if (state.token) {
+    if (state.tsUser) {
       dom.authInfo.style.display = 'flex';
       dom.btnShowLogin.style.display = 'none';
+      dom.authTokenPreview.textContent = state.tsUser;
+      dom.authTokenPreview.title = 'Đăng nhập qua tài khoản Tailscale';
+      dom.btnLogout.style.display = 'none';
+    } else if (state.token) {
+      dom.authInfo.style.display = 'flex';
+      dom.btnShowLogin.style.display = 'none';
+      dom.btnLogout.style.display = '';
 
       // Safe static indicator - never expose token fragments in header
       dom.authTokenPreview.textContent = 'Đã xác thực';
@@ -547,8 +574,142 @@
   /**
    * Render Camera Snapshot & Telemetry
    */
+  function selectedPrinter() {
+    return (state.data.printers || []).find((p) => p.printer_id === state.selectedPrinterId) || null;
+  }
+
+  function printerLabel(p) {
+    return (p && (p.name || p.printer_id)) || '';
+  }
+
+  // Snapshots of the selected printer (all snapshots when no printer is known yet)
+  function visibleSnapshots() {
+    const all = state.data.snapshots || [];
+    if (!state.selectedPrinterId) return all;
+    return all.filter((s) => s.printer_id === state.selectedPrinterId);
+  }
+
+  function formatMinutes(min) {
+    if (min === undefined || min === null || isNaN(min)) return '--';
+    const m = Math.max(0, Math.round(min));
+    return m >= 60 ? `${Math.floor(m / 60)}h${String(m % 60).padStart(2, '0')}` : `${m} phút`;
+  }
+
+  function fmtTemp(v) {
+    return typeof v === 'number' ? `${Math.round(v)}°C` : '--';
+  }
+
+  /**
+   * Render printer fleet cards
+   */
+  function renderPrinters() {
+    const printers = state.data.printers || [];
+    dom.printersCountBadge.textContent = `${printers.length} máy`;
+    dom.printersEmpty.style.display = printers.length ? 'none' : 'block';
+    dom.printersGrid.textContent = '';
+
+    if (printers.length && !printers.some((p) => p.printer_id === state.selectedPrinterId)) {
+      state.selectedPrinterId = printers[0].printer_id;
+      state.snapshotPinned = false;
+    }
+
+    printers.forEach((p) => {
+      const tele = p.telemetry || {};
+      const status = p.stale ? { label: 'Mất kết nối', className: 'badge-unknown' } : translateStatus(p.status);
+
+      const card = document.createElement('button');
+      card.type = 'button';
+      card.className = 'printer-card';
+      card.setAttribute('role', 'option');
+      card.setAttribute('aria-selected', String(p.printer_id === state.selectedPrinterId));
+
+      const head = document.createElement('div');
+      head.className = 'printer-card-head';
+      const titleWrap = document.createElement('div');
+      titleWrap.style.minWidth = '0';
+      const name = document.createElement('div');
+      name.className = 'printer-card-name';
+      name.textContent = printerLabel(p);
+      const meta = document.createElement('div');
+      meta.className = 'printer-card-meta font-mono';
+      meta.textContent = [p.model, p.printer_id !== printerLabel(p) ? p.printer_id : '', `cập nhật ${formatRelativeTime(p.last_seen)}`]
+        .filter(Boolean).join(' · ');
+      titleWrap.appendChild(name);
+      titleWrap.appendChild(meta);
+      const badge = document.createElement('span');
+      badge.className = `badge ${status.className}`;
+      badge.textContent = status.label;
+      head.appendChild(titleWrap);
+      head.appendChild(badge);
+      card.appendChild(head);
+
+      if (tele.job_name) {
+        const job = document.createElement('div');
+        job.className = 'printer-card-job';
+        job.textContent = tele.job_name;
+        job.title = tele.job_name;
+        card.appendChild(job);
+      }
+
+      if (typeof tele.progress === 'number') {
+        const bar = document.createElement('div');
+        bar.className = 'printer-progress';
+        bar.setAttribute('role', 'progressbar');
+        bar.setAttribute('aria-valuenow', String(tele.progress));
+        bar.setAttribute('aria-valuemin', '0');
+        bar.setAttribute('aria-valuemax', '100');
+        const fill = document.createElement('div');
+        fill.className = 'printer-progress-bar';
+        fill.style.width = `${Math.min(100, Math.max(0, tele.progress))}%`;
+        bar.appendChild(fill);
+        card.appendChild(bar);
+      }
+
+      const stats = document.createElement('div');
+      stats.className = 'printer-card-stats';
+      [
+        ['Tiến độ', typeof tele.progress === 'number' ? `${tele.progress}%` : '--'],
+        ['Còn lại', formatMinutes(tele.remaining_min)],
+        ['Lớp', tele.current_layer !== undefined ? `${tele.current_layer}/${tele.total_layers ?? '?'}` : '--'],
+        ['Đầu in', fmtTemp(tele.nozzle_temp)],
+        ['Bàn in', fmtTemp(tele.bed_temp)],
+        ['Quạt', tele.fan_speed !== undefined ? `${tele.fan_speed}%` : '--'],
+      ].forEach(([label, value]) => {
+        const cell = document.createElement('div');
+        const l = document.createElement('span');
+        l.className = 'printer-stat-label';
+        l.textContent = label;
+        const v = document.createElement('span');
+        v.className = 'printer-stat-value';
+        v.textContent = value;
+        cell.appendChild(l);
+        cell.appendChild(v);
+        stats.appendChild(cell);
+      });
+      card.appendChild(stats);
+
+      if (p.last_error) {
+        const err = document.createElement('div');
+        err.className = 'printer-card-error';
+        err.textContent = p.last_error;
+        card.appendChild(err);
+      }
+
+      card.addEventListener('click', () => {
+        if (state.selectedPrinterId === p.printer_id) return;
+        state.selectedPrinterId = p.printer_id;
+        state.snapshotPinned = false;
+        renderPrinters();
+        renderCameraSection();
+      });
+      dom.printersGrid.appendChild(card);
+    });
+  }
+
   async function renderCameraSection() {
-    const snapshots = state.data.snapshots || [];
+    const snapshots = visibleSnapshots();
+    const printer = selectedPrinter();
+    dom.headingCamera.textContent = printer ? `Camera: ${printerLabel(printer)}` : 'Camera Giám Sát In 3D';
 
     if (snapshots.length === 0) {
       dom.cameraEmpty.style.display = 'flex';
@@ -564,10 +725,13 @@
     }
 
     // Determine which snapshot to display: selected or latest
-    let currentSnapshot = snapshots.find((s) => s.id === state.selectedSnapshotId);
+    let currentSnapshot = state.snapshotPinned
+      ? snapshots.find((s) => s.id === state.selectedSnapshotId)
+      : null;
     if (!currentSnapshot) {
       currentSnapshot = snapshots[0];
       state.selectedSnapshotId = currentSnapshot.id;
+      state.snapshotPinned = false;
     }
 
     dom.cameraEmpty.style.display = 'none';
@@ -599,15 +763,19 @@
 
     // Populate HUD
     dom.hudDeviceId.textContent = `Cầu nối: ${currentSnapshot.device_id || 'redmi-9c'}`;
-    dom.hudPrinterId.textContent = `Máy in: ${currentSnapshot.printer_id || 'Bambu A1'}`;
+    dom.hudPrinterId.textContent = `Máy in: ${printer ? printerLabel(printer) : (currentSnapshot.printer_id || 'không rõ')}`;
     dom.hudCapturedTime.textContent = formatTime(capturedTime);
     dom.hudCapturedRelative.textContent = formatRelativeTime(capturedTime);
     dom.hudServerTime.textContent = formatDateTime(currentSnapshot.created_at);
     dom.cameraHud.style.display = 'flex';
 
-    // Populate Telemetry Strip (supports parsed JSON or string)
-    const tele = safeJsonParse(currentSnapshot.telemetry, {});
-    dom.telemetryStatus.textContent = translateStatus(currentSnapshot.status).label;
+    // Telemetry: live printer numbers when following the newest image,
+    // otherwise the numbers recorded with the selected (older) snapshot
+    const snapTele = safeJsonParse(currentSnapshot.telemetry, {});
+    const liveTele = printer && !state.snapshotPinned ? (printer.telemetry || {}) : {};
+    const tele = Object.keys(liveTele).length ? liveTele : snapTele;
+    const liveStatus = printer && !state.snapshotPinned && !printer.stale ? printer.status : currentSnapshot.status;
+    dom.telemetryStatus.textContent = translateStatus(liveStatus).label;
 
     dom.telemetryNozzle.textContent = tele.nozzle_temp !== undefined ? `${tele.nozzle_temp} °C` : '--';
     dom.telemetryBed.textContent = tele.bed_temp !== undefined ? `${tele.bed_temp} °C` : '--';
@@ -721,6 +889,8 @@
 
       item.addEventListener('click', () => {
         state.selectedSnapshotId = snap.id;
+        // Clicking the newest thumbnail resumes live follow mode
+        state.snapshotPinned = snap.id !== snapshots[0].id;
         renderCameraSection();
       });
 
@@ -1162,7 +1332,7 @@
    */
   async function syncDashboard(manual = false) {
     if (state.isSyncing) return;
-    if (!state.token) {
+    if (!isAuthenticated()) {
       openLoginModal();
       return;
     }
@@ -1177,6 +1347,7 @@
         snapshots: Array.isArray(data.snapshots) ? data.snapshots : [],
         alerts: Array.isArray(data.alerts) ? data.alerts : [],
         devices: Array.isArray(data.devices) ? data.devices : [],
+        printers: Array.isArray(data.printers) ? data.printers : [],
         config: data.config || {}
       };
 
@@ -1190,6 +1361,7 @@
       // Render components
       renderConfigPills(state.data.config);
       renderSummaryMetrics();
+      renderPrinters();
       await renderCameraSection();
       renderDevices();
       renderAlerts();
@@ -1248,7 +1420,7 @@
   }
 
   async function openLightboxModal() {
-    const snapshots = state.data.snapshots || [];
+    const snapshots = visibleSnapshots();
     const current = snapshots.find((s) => s.id === state.selectedSnapshotId) || snapshots[0];
     if (!current) return;
 
@@ -1444,11 +1616,25 @@
   }
 
   // --- Bootstrap Application ---
-  function init() {
-    updateAuthUI();
-    initEventListeners();
+  async function detectTailscaleUser() {
+    try {
+      const res = await fetch('/api/whoami', { headers: { 'X-PrintPilot-Request': '1' }, cache: 'no-store' });
+      if (!res.ok) return;
+      const who = await res.json();
+      if (who && who.authenticated && who.method === 'tailscale' && typeof who.user === 'string') {
+        state.tsUser = who.user;
+      }
+    } catch (_) {
+      // Offline or older server: fall back to token login
+    }
+  }
 
-    if (!state.token) {
+  async function init() {
+    initEventListeners();
+    await detectTailscaleUser();
+    updateAuthUI();
+
+    if (!isAuthenticated()) {
       openLoginModal();
     } else {
       syncDashboard(false);

@@ -10,6 +10,7 @@ import logging
 import os
 import signal
 import sys
+import threading
 import time
 from typing import Optional
 
@@ -26,17 +27,20 @@ try:
     from .client import PrintPilotApiClient, sanitize_message
     from .config import BridgeConfig, load_config
     from .exceptions import BridgeError, ConfigError, FingerprintMismatchError
+    from .telemetry import TelemetryClient, status_from
 except (ImportError, ValueError):
     try:
         from services.printpilot.bridge.camera import BambuCameraClient
         from services.printpilot.bridge.client import PrintPilotApiClient, sanitize_message
         from services.printpilot.bridge.config import BridgeConfig, load_config
         from services.printpilot.bridge.exceptions import BridgeError, ConfigError, FingerprintMismatchError
+        from services.printpilot.bridge.telemetry import TelemetryClient, status_from
     except ImportError:
         from camera import BambuCameraClient
         from client import PrintPilotApiClient, sanitize_message
         from config import BridgeConfig, load_config
         from exceptions import BridgeError, ConfigError, FingerprintMismatchError
+        from telemetry import TelemetryClient, status_from
 
 # Configure root logger
 logging.basicConfig(
@@ -56,6 +60,7 @@ class BridgeService:
         self._running = False
         self._last_error: Optional[str] = None
         self.camera: Optional[BambuCameraClient] = None
+        self.telemetry: Optional[TelemetryClient] = None
 
         self.client = PrintPilotApiClient(
             server_url=config.server_url,
@@ -73,6 +78,31 @@ class BridgeService:
             logger.info("Running in heartbeat-only mode; camera capture disabled.")
         else:
             self._init_camera()
+            if self.config.telemetry_enabled:
+                self.telemetry = TelemetryClient(
+                    host=self.config.printer_host,
+                    access_code=self.config.printer_access_code,
+                    serial=self.config.printer_serial,
+                    cert_fingerprint=self.config.cert_fingerprint,
+                    connect_timeout=self.config.connect_timeout,
+                )
+
+    def _printer_state(self):
+        """(status, telemetry) from MQTT; 'unknown' when no fresh telemetry."""
+        tele = self.telemetry.snapshot() if self.telemetry else {}
+        return (status_from(tele) if tele else "unknown"), tele
+
+    def _heartbeat(self, error: Optional[str] = None) -> None:
+        status, tele = self._printer_state()
+        self.client.send_heartbeat(
+            device_id=self.config.device_id,
+            printer_id=self.config.printer_id,
+            status=status,
+            error=error,
+            telemetry=tele or None,
+            printer_name=self.config.printer_name,
+            printer_model=self.config.printer_model,
+        )
 
     def _init_camera(self) -> None:
         """Initialize camera client after validating printer settings."""
@@ -128,24 +158,22 @@ class BridgeService:
             image_bytes, meta = self.camera.capture_snapshot_with_retry(
                 retries=self.config.max_retries
             )
-            # Send snapshot to PrintPilot server with status 'unknown' (camera alone cannot infer printer state)
+            # Status comes from MQTT telemetry; the camera alone cannot infer it
+            status, tele = self._printer_state()
+            snap_tele = dict(tele)
+            snap_tele.update({"frame_size": len(image_bytes), "itrack": meta.get("itrack", 0)})
             self.client.send_with_retry(
                 self.client.send_snapshot,
                 device_id=self.config.device_id,
                 printer_id=self.config.printer_id,
                 image_bytes=image_bytes,
-                status="unknown",
-                telemetry={"frame_size": len(image_bytes), "itrack": meta.get("itrack", 0)},
+                status=status,
+                telemetry=snap_tele,
                 retries=self.config.max_retries,
             )
             # Clear last camera error on success
             self._last_error = None
-            # Send heartbeat marking device status unknown (camera alone cannot infer printer state)
-            self.client.send_heartbeat(
-                device_id=self.config.device_id,
-                printer_id=self.config.printer_id,
-                status="unknown",
-            )
+            self._heartbeat()
             logger.info(
                 "Snapshot successfully sent (%d bytes, itrack=%s)",
                 len(image_bytes),
@@ -168,12 +196,7 @@ class BridgeService:
     def _send_error_heartbeat(self, error_msg: str) -> None:
         """Send heartbeat marking device as unknown with error details."""
         try:
-            self.client.send_heartbeat(
-                device_id=self.config.device_id,
-                printer_id=self.config.printer_id,
-                status="unknown",
-                error=error_msg,
-            )
+            self._heartbeat(error_msg)
         except Exception as hb_err:
             logger.warning(
                 "Failed to send failure heartbeat to backend: %s",
@@ -186,12 +209,7 @@ class BridgeService:
         Retains active camera/config error rather than falsely clearing it by idle.
         """
         try:
-            self.client.send_heartbeat(
-                device_id=self.config.device_id,
-                printer_id=self.config.printer_id,
-                status="unknown",
-                error=self._last_error,
-            )
+            self._heartbeat(self._last_error)
         except Exception as e:
             logger.warning("Periodic heartbeat failed: %s", sanitize_message(str(e)))
 
@@ -199,6 +217,8 @@ class BridgeService:
         """Request loop shutdown."""
         logger.info("Stopping bridge service...")
         self._running = False
+        if self.telemetry:
+            self.telemetry.stop()
 
     def run_once(self) -> int:
         """Execute a single snapshot and heartbeat cycle, then exit."""
@@ -228,6 +248,14 @@ class BridgeService:
 
         last_snapshot_time = 0.0
         last_heartbeat_time = 0.0
+
+        if self.telemetry:
+            self.telemetry.start()
+            # Give MQTT a moment so the first snapshot already carries telemetry
+            for _ in range(5):
+                if not self._running or self.telemetry.snapshot():
+                    break
+                time.sleep(1)
 
         # Send initial heartbeat immediately upon starting
         self.send_periodic_heartbeat()
@@ -277,6 +305,33 @@ class BridgeService:
         return 0
 
 
+class MultiBridge:
+    """Runs one BridgeService per configured printer, each in its own thread."""
+
+    def __init__(self, config: BridgeConfig, heartbeat_only: bool = False):
+        self.services = [BridgeService(c, heartbeat_only=heartbeat_only)
+                         for c in config.printer_configs()]
+
+    def stop(self) -> None:
+        for svc in self.services:
+            svc.stop()
+
+    def run_once(self) -> int:
+        return max(svc.run_once() for svc in self.services)
+
+    def run(self) -> int:
+        if len(self.services) == 1:
+            return self.services[0].run()
+        threads = [threading.Thread(target=svc.run, daemon=True, name=f"printer-{svc.config.printer_id}")
+                   for svc in self.services]
+        for t in threads:
+            t.start()
+        while any(t.is_alive() for t in threads):
+            for t in threads:
+                t.join(timeout=1.0)
+        return 0
+
+
 def main(argv: Optional[list] = None) -> int:
     """CLI entrypoint for PrintPilot camera bridge."""
     parser = argparse.ArgumentParser(
@@ -317,7 +372,11 @@ def main(argv: Optional[list] = None) -> int:
         logger.error("Configuration error: %s", sanitize_message(str(e)))
         return 1
 
-    service = BridgeService(config, heartbeat_only=args.heartbeat_only)
+    try:
+        service = MultiBridge(config, heartbeat_only=args.heartbeat_only)
+    except ConfigError as e:
+        logger.error("Configuration error: %s", sanitize_message(str(e)))
+        return 1
 
     # Attach signal handlers for graceful termination
     def handle_signal(sig, frame):
