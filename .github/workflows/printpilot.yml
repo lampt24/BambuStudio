@@ -92,11 +92,21 @@ jobs:
           python-version: '3.12'
       - run: |
           brew install automake texinfo nasm yasm ninja
+          # Same as upstream build_deps.yml: if Homebrew's zstd is present,
+          # deps link against /opt/homebrew/.../libzstd.1.dylib and the app
+          # aborts on any Mac without Homebrew zstd.
+          brew uninstall --ignore-dependencies zstd || true
           python -m pip install cmake==3.31.6
       - name: Build
         env:
           CMAKE_BUILD_PARALLEL_LEVEL: 3
         run: ./BuildMac.sh -x -a arm64 -t 11.0
+      - name: Check for Homebrew library links
+        # Fail the build instead of shipping an app that only runs on the runner
+        run: |
+          bad=$(find build/arm64/BambuStudio/BambuStudio.app -type f -perm +111 -print0 \
+            | xargs -0 otool -L 2>/dev/null | grep -E '^\s+(/opt/homebrew|/usr/local)/' || true)
+          if [ -n "$bad" ]; then echo "Links to Homebrew libraries:"; echo "$bad"; exit 1; fi
       - name: Ad-hoc sign
         # Without a valid signature, Apple Silicon reports a downloaded app as
         # "damaged". Ad-hoc signing turns that into the normal
