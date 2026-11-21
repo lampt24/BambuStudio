@@ -1,0 +1,8 @@
+#!/data/data/com.termux/files/usr/bin/sh
+# Termux runit logging script using svlogd
+# Do NOT reassign HOME; use USER_HOME without mutating the environment variable
+USER_HOME="${HOME:-/data/data/com.termux/files/home}"
+LOG_DIR="${USER_HOME}/.config/printpilot/logs"
+
+mkdir -p "$LOG_DIR"
+exec svlogd -tt "$LOG_DIR"

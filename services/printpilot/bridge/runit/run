@@ -1,0 +1,60 @@
+#!/data/data/com.termux/files/usr/bin/sh
+# Termux runit service run script for PrintPilot A1 camera bridge
+exec 2>&1
+
+PREFIX="${PREFIX:-/data/data/com.termux/files/usr}"
+# Do NOT reassign HOME; use USER_HOME without mutating the environment variable
+USER_HOME="${HOME:-/data/data/com.termux/files/home}"
+PYTHON="${PREFIX}/bin/python"
+
+if [ ! -x "$PYTHON" ]; then
+    PYTHON="$(command -v python3 || command -v python)"
+fi
+
+if [ -z "$PYTHON" ]; then
+    echo "[printpilot-bridge] Error: Python interpreter not found." >&2
+    sleep 10
+    exit 1
+fi
+
+CONFIG_FILE="${CONFIG_FILE:-${USER_HOME}/.config/printpilot/bridge.json}"
+
+# Load installed directory locations from service.env if available
+SERVICE_ENV="${USER_HOME}/.config/printpilot/service.env"
+if [ -f "$SERVICE_ENV" ]; then
+    . "$SERVICE_ENV"
+fi
+
+# Fallback path discovery if service.env is not present
+if [ -z "$BRIDGE_DIR" ]; then
+    CANDIDATE="$(cd "$(dirname "$0")/.." && pwd)"
+    if [ -f "${CANDIDATE}/main.py" ]; then
+        BRIDGE_DIR="$CANDIDATE"
+    elif [ -f "$(dirname "$0")/main.py" ]; then
+        BRIDGE_DIR="$(cd "$(dirname "$0")" && pwd)"
+    fi
+fi
+
+if [ -z "$REPO_ROOT" ] && [ -n "$BRIDGE_DIR" ]; then
+    REPO_ROOT="$(cd "${BRIDGE_DIR}/../../.." && pwd)"
+fi
+
+# Ensure Python module path includes both repository root and bridge package directory
+if [ -n "$REPO_ROOT" ] && [ -n "$BRIDGE_DIR" ]; then
+    export PYTHONPATH="${REPO_ROOT}:${BRIDGE_DIR}:${PYTHONPATH}"
+elif [ -n "$BRIDGE_DIR" ]; then
+    export PYTHONPATH="${BRIDGE_DIR}:${PYTHONPATH}"
+fi
+
+echo "[printpilot-bridge] Starting PrintPilot bridge with config $CONFIG_FILE"
+
+# Execute service: try module invocation first, falling back to direct main.py path
+if [ -n "$REPO_ROOT" ] && [ -f "${BRIDGE_DIR}/main.py" ]; then
+    exec "$PYTHON" -u -m services.printpilot.bridge.main --config "$CONFIG_FILE"
+elif [ -n "$BRIDGE_DIR" ] && [ -f "${BRIDGE_DIR}/main.py" ]; then
+    exec "$PYTHON" -u "${BRIDGE_DIR}/main.py" --config "$CONFIG_FILE"
+else
+    echo "[printpilot-bridge] Error: main.py not found at ${BRIDGE_DIR}" >&2
+    sleep 10
+    exit 1
+fi

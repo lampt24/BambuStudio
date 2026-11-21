@@ -38,6 +38,7 @@
 #include "I18N.hpp"
 #include "GLCanvas3D.hpp"
 #include "Plater.hpp"
+#include "AI/PrintPilotHook.hpp"
 #include "WebViewDialog.hpp"
 #include "../Utils/Process.hpp"
 #include "format.hpp"
@@ -3059,6 +3060,11 @@ void MainFrame::init_menubar_as_editor()
             [this](wxCommandEvent&) { if (m_plater) m_plater->load_project(); }, "", nullptr,
             [this](){return can_open_project(); }, this);
 #endif
+
+        append_menu_item(fileMenu, wxID_ANY, _L("PrintPilot AI settings"),
+            _L("Review AI print settings for this project"),
+            [this](wxCommandEvent&) { if (m_plater) AI::run_manual(m_plater); }, "", nullptr,
+            [this]() { return m_plater != nullptr; }, this);
 
         // Recent Project
         wxMenu* recent_projects_menu = new wxMenu();

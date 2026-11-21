@@ -1,0 +1,19 @@
+{
+  "_comment": "PrintPilot server configuration example. Copy to server.json and fill in real values. Keep out of Git.",
+
+  "host": "127.0.0.1",
+  "port": 7900,
+
+  "data_dir": "/var/lib/printpilot",
+
+  "manager_token": "CHANGE_ME_long_random_manager_token",
+  "device_token":  "CHANGE_ME_long_random_device_token_different_from_manager",
+
+  "ai_base_url":   "https://api.openai.com/v1",
+  "ai_key":        "sk-CHANGE_ME",
+  "ai_model":      "gpt-4o",
+  "ai_model_has_vision": true,
+  "vision_model":  "gpt-4o",
+
+  "webhook_url":   "https://hooks.example.com/services/CHANGE_ME"
+}

@@ -1,0 +1,19 @@
+[Unit]
+Description=PrintPilot AI print analysis and monitoring
+After=network-online.target tailscaled.service
+Wants=network-online.target
+
+[Service]
+User=dev
+WorkingDirectory=/home/dev/work/BambuStudio/services/printpilot
+ExecStart=/usr/bin/python3 server.py /home/dev/.config/printpilot/server.json
+Restart=on-failure
+RestartSec=5
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ReadWritePaths=/home/dev/.local/state/printpilot
+
+[Install]
+WantedBy=multi-user.target

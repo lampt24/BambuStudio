@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+server.json
+bridge.json
+data/
+*.log
+*.pid

@@ -223,6 +223,8 @@
 
 #include "HelioReleaseNote.hpp"
 #include "libslic3r/Log.hpp"
+// PrintPilot AI integration (pre-send hooks only)
+#include "AI/PrintPilotHook.hpp"
 
 using boost::optional;
 namespace fs = boost::filesystem;
@@ -3667,6 +3669,12 @@ Sidebar::Sidebar(Plater *parent)
     // Sizer in the scrolled area
     auto* scrolled_sizer = m_scrolled_sizer = new wxBoxSizer(wxVERTICAL);
     p->scrolled->SetSizer(scrolled_sizer);
+    auto* printpilot_button = new wxButton(p->scrolled, wxID_ANY, _L("AI auto setting"));
+    printpilot_button->SetToolTip(_L("Review AI print settings for this project"));
+    printpilot_button->Bind(wxEVT_BUTTON, [parent](wxCommandEvent&) {
+        Slic3r::GUI::AI::run_manual(parent);
+    });
+    scrolled_sizer->Add(printpilot_button, 0, wxEXPAND | wxALL, FromDIP(8));
 
     wxColour title_bg = ThemeColor::Grey350;
     wxColour inactive_text = wxColour(86, 86, 86);
@@ -19636,6 +19644,8 @@ void Plater::priv::on_action_print_plate(SimpleEvent&)
 
     if (!wxGetApp().check_send_print_version_policy()) return;
 
+    if (!Slic3r::GUI::AI::run_before_send(q, false)) return;
+
     if (q->only_gcode_mode()) {
         if (confirm_send_only_gcode())
             q->send_to_printer();
@@ -19665,6 +19675,7 @@ bool Plater::priv::confirm_send_only_gcode()
 
 void Plater::priv::on_action_send_to_multi_machine(SimpleEvent&)
 {
+    if (!Slic3r::GUI::AI::run_before_send(q, false)) return;
     if (!m_send_multi_dlg)
         m_send_multi_dlg = new SendMultiMachinePage(q);
     m_send_multi_dlg->prepare(partplate_list.get_curr_plate_index());
@@ -19673,6 +19684,7 @@ void Plater::priv::on_action_send_to_multi_machine(SimpleEvent&)
 
 void Plater::priv::on_action_send_to_multi_app(SimpleEvent &)
 {
+    if (!Slic3r::GUI::AI::run_before_send(q, false)) return;
 #ifdef WIN32
     HKEY hKey;
 
@@ -19738,6 +19750,7 @@ bool Plater::show_print_queue_dialog(std::shared_ptr<QueuePrintContext> context,
 {
     if (!context || !p) return false;
     if (!wxGetApp().check_send_print_version_policy()) return false;
+    if (!Slic3r::GUI::AI::run_before_queue_send()) return false;
     if (!p->m_select_machine_dlg) p->m_select_machine_dlg = new SelectMachineDialog(p->q);
     if (!p->m_select_machine_dlg->set_queue_print_context(std::move(context))) return false;
     if (on_opened) on_opened();
@@ -19762,6 +19775,9 @@ int Plater::priv::update_print_required_data(Slic3r::DynamicPrintConfig config, 
 void Plater::priv::on_action_send_to_printer(bool isall)
 {
     if (!wxGetApp().check_send_print_version_policy()) return;
+
+    // PrintPilot pre-send hook
+    if (!Slic3r::GUI::AI::run_before_send(q, isall)) return;
 
 	if (!m_send_to_sdcard_dlg) m_send_to_sdcard_dlg = new SendToPrinterDialog(q);
     if (isall) {
@@ -19790,6 +19806,8 @@ void Plater::priv::on_action_print_all(SimpleEvent&)
     }
 
     if (!wxGetApp().check_send_print_version_policy()) return;
+
+    if (!Slic3r::GUI::AI::run_before_send(q, true)) return;
 
     if (q->only_gcode_mode()) {
         if (confirm_send_only_gcode())
@@ -27594,6 +27612,7 @@ int Plater::export_3mf(const boost::filesystem::path& output_path, SaveStrategy 
     publish(p->model, strategy);
 
     DynamicPrintConfig cfg = wxGetApp().preset_bundle->full_config_secure();
+    if (AI::redacting_export) cfg.erase("print_host");
     // project_config keeps the per-slot diameters after multi-diameter mode is turned off, so turning it
     // back on restores them. In single-diameter mode those values are inactive, and every slot prints on
     // the printer's own diameter, which is what the file stores.
@@ -27712,6 +27731,15 @@ int Plater::export_3mf(const boost::filesystem::path& output_path, SaveStrategy 
     // BBS: backup
     PresetBundle& preset_bundle = *wxGetApp().preset_bundle;
     std::vector<Preset*> project_presets = preset_bundle.get_current_project_embedded_presets();
+    // PrintPilot: redact copies only; the live presets must keep their host settings.
+    std::vector<std::unique_ptr<Preset>> redacted_presets;
+    if (AI::redacting_export)
+        for (Preset*& preset : project_presets) {
+            redacted_presets.emplace_back(std::make_unique<Preset>(*preset));
+            preset = redacted_presets.back().get();
+            for (const char* key : {"print_host", "print_host_webui", "printhost_apikey", "printhost_cafile", "printhost_user", "printhost_password", "printhost_port"})
+                preset->config.erase(key);
+        }
 
     StoreParams store_params;
     store_params.path  = path_u8.c_str();

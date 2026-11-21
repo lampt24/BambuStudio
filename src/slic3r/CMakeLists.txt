@@ -294,6 +294,16 @@ set(SLIC3R_GUI_SOURCES
     GUI/BedShapeDialog.hpp
     GUI/Plater.cpp
     GUI/Plater.hpp
+    # PrintPilot AI integration
+    GUI/AI/PrintPilotConfig.hpp
+    GUI/AI/PrintPilotConfig.cpp
+    GUI/AI/PrintPilotClient.hpp
+    GUI/AI/PrintPilotClient.cpp
+    GUI/AI/PrintPilotDialog.hpp
+    GUI/AI/PrintPilotDialog.cpp
+    GUI/AI/PrintPilotValidation.hpp
+    GUI/AI/PrintPilotHook.hpp
+    GUI/AI/PrintPilotHook.cpp
     GUI/PartPlate.cpp
     GUI/PartPlate.hpp
     GUI/WipeTowerPlacement.cpp
