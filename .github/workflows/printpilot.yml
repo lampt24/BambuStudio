@@ -97,6 +97,13 @@ jobs:
         env:
           CMAKE_BUILD_PARALLEL_LEVEL: 3
         run: ./BuildMac.sh -x -a arm64 -t 11.0
+      - name: Ad-hoc sign
+        # Without a valid signature, Apple Silicon reports a downloaded app as
+        # "damaged". Ad-hoc signing turns that into the normal
+        # "unidentified developer" prompt (Privacy & Security > Open Anyway).
+        run: |
+          codesign --force --deep --sign - build/arm64/BambuStudio/BambuStudio.app
+          codesign --verify --deep --strict --verbose=2 build/arm64/BambuStudio/BambuStudio.app
       - name: Package
         run: ditto -c -k --sequesterRsrc --keepParent build/arm64/BambuStudio/BambuStudio.app PrintPilot-macOS-arm64.zip
       - uses: actions/upload-artifact@v4
