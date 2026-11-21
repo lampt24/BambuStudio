@@ -25,8 +25,11 @@ Stop any foreground/test instance before enabling the system unit. The `dev`
 account currently cannot use sudo; a running user process is not proof of VPS
 reboot persistence. No existing server services need to be modified.
 
-Set `webhook_url` in the private server config to a manager notification endpoint
-that accepts JSON, then restart. Until configured, alerts appear in the dashboard
+Manager alerts go to Telegram and/or a JSON webhook. For Telegram, create a bot
+with @BotFather, send it any message from the manager account, read the numeric
+chat id from `https://api.telegram.org/bot<TOKEN>/getUpdates`, then set
+`telegram_bot_token` and `telegram_chat_id` in the private server config
+(`chmod 600`) and restart. `webhook_url` is optional and can be used alongside. Until configured, alerts appear in the dashboard
 but external delivery is not enabled. Never infer printer health from `/health`:
 it reports the server process only.
 

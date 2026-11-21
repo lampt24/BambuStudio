@@ -15,5 +15,7 @@
   "ai_model_has_vision": true,
   "vision_model":  "gpt-4o",
 
-  "webhook_url":   "https://hooks.example.com/services/CHANGE_ME"
+  "webhook_url":   "",
+  "telegram_bot_token": "",
+  "telegram_chat_id":   ""
 }

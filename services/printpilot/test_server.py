@@ -1501,5 +1501,79 @@ class TestParseHelpers(unittest.TestCase):
 # Entry point
 # ---------------------------------------------------------------------------
 
+
+
+# ---------------------------------------------------------------------------
+# Telegram delivery
+# ---------------------------------------------------------------------------
+
+class TestTelegram(unittest.TestCase):
+    def _alert(self, conn):
+        from server import upsert_alert
+        aid = upsert_alert(conn, "vision", "critical", "Spaghetti detected",
+                           device_id="redmi-9c", printer_id="a1-01")
+        return conn.execute("SELECT * FROM alerts WHERE id=?", (aid,)).fetchone()
+
+    def _db(self):
+        from server import open_db
+        d = tempfile.mkdtemp()
+        return open_db(os.path.join(d, "t.db"))
+
+    def test_configured_flags(self):
+        from server import notifications_configured, telegram_configured
+        self.assertFalse(notifications_configured({}))
+        self.assertFalse(telegram_configured({"telegram_bot_token": "x"}))
+        self.assertTrue(notifications_configured(
+            {"telegram_bot_token": "x", "telegram_chat_id": "1"}))
+
+    def test_send_telegram_success_marks_sent(self):
+        from unittest import mock
+        import server
+        conn = self._db()
+        alert = self._alert(conn)
+        sent = {}
+
+        class FakeConn:
+            def __init__(self, host, port, context=None, timeout=None):
+                sent["host"] = host
+            def request(self, method, path, body=None, headers=None):
+                sent["path"] = path
+                sent["body"] = json.loads(body)
+            def getresponse(self):
+                r = mock.Mock(); r.status = 200; r.read.return_value = b"{}"; return r
+            def close(self):
+                pass
+
+        cfg = {"telegram_bot_token": "123:ABC", "telegram_chat_id": "42"}
+        with mock.patch.object(server.http.client, "HTTPSConnection", FakeConn):
+            server.send_webhook(cfg, alert, conn)
+        self.assertEqual(sent["host"], "api.telegram.org")
+        self.assertEqual(sent["path"], "/bot123:ABC/sendMessage")
+        self.assertEqual(sent["body"]["chat_id"], "42")
+        self.assertIn("Spaghetti detected", sent["body"]["text"])
+        row = conn.execute("SELECT webhook_sent FROM alerts WHERE id=?", (alert["id"],)).fetchone()
+        self.assertEqual(row["webhook_sent"], 1)
+
+    def test_send_telegram_failure_schedules_retry_without_leaking_token(self):
+        from unittest import mock
+        import server
+        conn = self._db()
+        alert = self._alert(conn)
+
+        class FailConn:
+            def __init__(self, *a, **k): pass
+            def request(self, *a, **k): raise OSError("boom")
+            def close(self): pass
+
+        cfg = {"telegram_bot_token": "SECRET-TOKEN", "telegram_chat_id": "42"}
+        with mock.patch.object(server.http.client, "HTTPSConnection", FailConn), \
+                self.assertLogs("printpilot", level="WARNING") as logs:
+            server.send_webhook(cfg, alert, conn)
+        self.assertNotIn("SECRET-TOKEN", "\n".join(logs.output))
+        row = conn.execute("SELECT webhook_sent, webhook_retries FROM alerts WHERE id=?",
+                           (alert["id"],)).fetchone()
+        self.assertEqual((row["webhook_sent"], row["webhook_retries"]), (0, 1))
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

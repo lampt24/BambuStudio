@@ -19,7 +19,7 @@ Configuration (JSON file, path in env PRINTPILOT_CONFIG or first CLI arg):
   host, port, data_dir,
   manager_token, device_token,
   ai_base_url, ai_key, ai_model, vision_model,
-  webhook_url
+  webhook_url, telegram_bot_token, telegram_chat_id
 """
 
 from __future__ import annotations
@@ -829,10 +829,66 @@ def upsert_alert(conn: sqlite3.Connection, source: str, severity: str,
     return alert_id
 
 
+def telegram_configured(cfg: dict) -> bool:
+    return bool(str(cfg.get("telegram_bot_token", "")).strip()
+                and str(cfg.get("telegram_chat_id", "")).strip())
+
+
+def notifications_configured(cfg: dict) -> bool:
+    return bool(str(cfg.get("webhook_url", "")).strip()) or telegram_configured(cfg)
+
+
+_SEVERITY_ICON = {"critical": "\U0001F6A8", "error": "\u274C", "warning": "\u26A0\uFE0F"}
+
+
+def format_telegram_text(alert: sqlite3.Row) -> str:
+    icon = _SEVERITY_ICON.get(str(alert["severity"]).lower(), "\u2139\uFE0F")
+    lines = [f"{icon} PrintPilot: {str(alert['severity']).upper()}",
+             str(alert["message"] or "")[:3000]]
+    source = alert["printer_id"] or alert["device_id"]
+    if source:
+        lines.append(f"Nguồn: {source}")
+    lines.append(f"Lúc: {alert['created_at']}")
+    return "\n".join(lines)
+
+
+def send_telegram(cfg: dict, alert: sqlite3.Row) -> bool:
+    """Send alert text via Telegram Bot API. Never logs the bot token."""
+    token = str(cfg.get("telegram_bot_token", "")).strip()
+    chat_id = str(cfg.get("telegram_chat_id", "")).strip()
+    payload = json.dumps({"chat_id": chat_id, "text": format_telegram_text(alert),
+                          "disable_web_page_preview": True}).encode()
+    conn_h = None
+    try:
+        import ssl
+        conn_h = http.client.HTTPSConnection(
+            "api.telegram.org", 443, context=ssl.create_default_context(), timeout=15)
+        conn_h.request("POST", f"/bot{token}/sendMessage", body=payload,
+                       headers={"Content-Type": "application/json",
+                                "User-Agent": "PrintPilot/1.0"})
+        resp = conn_h.getresponse()
+        resp.read()
+        if resp.status >= 400:
+            log.warning("Telegram delivery failed for alert %s: HTTP %s", alert["id"], resp.status)
+            return False
+        return True
+    except Exception as exc:
+        log.warning("Telegram delivery failed for alert %s: %s", alert["id"], type(exc).__name__)
+        return False
+    finally:
+        if conn_h is not None:
+            conn_h.close()
+
+
 def send_webhook(cfg: dict, alert: sqlite3.Row, conn: sqlite3.Connection) -> None:
-    """Attempt to POST alert to webhook_url. Updates DB on success/failure."""
+    """Deliver alert to every configured channel (webhook, Telegram).
+    Updates DB on success/failure."""
+    if not notifications_configured(cfg):
+        return
     url = cfg.get("webhook_url", "").strip()
     if not url:
+        success = send_telegram(cfg, alert)
+        _record_delivery(conn, alert, success)
         return
     parsed = urllib.parse.urlparse(url)
     host = parsed.hostname
@@ -878,7 +934,12 @@ def send_webhook(cfg: dict, alert: sqlite3.Row, conn: sqlite3.Connection) -> Non
         if conn_h is not None:
             conn_h.close()
 
-    now = _now_iso()
+    if telegram_configured(cfg):
+        success = send_telegram(cfg, alert) and success
+    _record_delivery(conn, alert, success)
+
+
+def _record_delivery(conn: sqlite3.Connection, alert: sqlite3.Row, success: bool) -> None:
     if success:
         conn.execute(
             "UPDATE alerts SET webhook_sent=1 WHERE id=?", (alert["id"],)
@@ -887,7 +948,6 @@ def send_webhook(cfg: dict, alert: sqlite3.Row, conn: sqlite3.Connection) -> Non
         retries = alert["webhook_retries"] + 1
         # Exponential backoff: 2^retries * 60s, max 1h
         delay = min(2 ** retries * 60, 3600)
-        import datetime
         next_at = time.strftime(
             "%Y-%m-%dT%H:%M:%SZ",
             time.gmtime(time.time() + delay)
@@ -1325,7 +1385,7 @@ class PrintPilotHandler(http.server.BaseHTTPRequestHandler):
         config_info = {
             "ai_configured":           bool(cfg.get("ai_base_url") and cfg.get("ai_key")),
             "vision_configured":       bool(cfg.get("vision_model") or cfg.get("ai_model")),
-            "notifications_configured": bool(cfg.get("webhook_url")),
+            "notifications_configured": notifications_configured(cfg),
         }
 
         self._send_json(200, {
