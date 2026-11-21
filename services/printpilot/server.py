@@ -476,6 +476,73 @@ def validate_command(command: Any, params: Any, printer_status: str) -> dict:
 
 
 # ---------------------------------------------------------------------------
+# Live camera (on demand, in memory only: never stored, never sent to AI)
+# ---------------------------------------------------------------------------
+
+LIVE_VIEWER_TTL = 20          # seconds a viewer request keeps the stream wanted
+LIVE_MAX_SESSION = 5 * 60     # hard cap per viewer start
+LIVE_FRAME_WAIT = 2.5         # long-poll wait for a newer frame
+MAX_LIVE_FRAME_BYTES = 2 * 1024 * 1024
+
+
+class LiveHub:
+    def __init__(self) -> None:
+        self._cond = threading.Condition()
+        self._sessions: dict[str, dict] = {}
+
+    def want(self, printer_id: str) -> bool:
+        """Viewer heartbeat. Returns True when this starts a new stream."""
+        now = time.monotonic()
+        with self._cond:
+            sess = self._sessions.get(printer_id)
+            fresh = sess is None or sess["wanted_until"] < now or now - sess["started"] > LIVE_MAX_SESSION
+            if fresh:
+                sess = {"started": now, "wanted_until": 0.0, "frame": None, "seq": 0, "at": 0.0}
+                self._sessions[printer_id] = sess
+            sess["wanted_until"] = min(now + LIVE_VIEWER_TTL, sess["started"] + LIVE_MAX_SESSION)
+            return fresh
+
+    def stop(self, printer_id: str) -> None:
+        with self._cond:
+            self._sessions.pop(printer_id, None)
+            self._cond.notify_all()
+
+    def wanted(self) -> list[str]:
+        now = time.monotonic()
+        with self._cond:
+            for pid in [p for p, s in self._sessions.items() if s["wanted_until"] < now]:
+                del self._sessions[pid]
+            return sorted(self._sessions)
+
+    def put(self, printer_id: str, frame: bytes) -> bool:
+        with self._cond:
+            sess = self._sessions.get(printer_id)
+            if sess is None or sess["wanted_until"] < time.monotonic():
+                return False
+            sess["frame"] = frame
+            sess["seq"] += 1
+            sess["at"] = time.time()
+            self._cond.notify_all()
+            return True
+
+    def get(self, printer_id: str, after: int, wait: float = LIVE_FRAME_WAIT):
+        """Newest frame with seq > after, waiting briefly. Returns (seq, at, bytes) or None."""
+        deadline = time.monotonic() + wait
+        with self._cond:
+            while True:
+                sess = self._sessions.get(printer_id)
+                if sess and sess["frame"] is not None and sess["seq"] > after:
+                    return sess["seq"], sess["at"], sess["frame"]
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    return None
+                self._cond.wait(remaining)
+
+
+LIVE = LiveHub()
+
+
+# ---------------------------------------------------------------------------
 # Activity log (shown in the dashboard)
 # ---------------------------------------------------------------------------
 
@@ -1771,6 +1838,8 @@ class PrintPilotHandler(http.server.BaseHTTPRequestHandler):
                 self._require_manager(self._handle_events)
             elif re.match(r"^/api/commands/[a-zA-Z0-9-]+$", path):
                 self._require_manager(lambda: self._handle_command_status(path))
+            elif re.match(r"^/api/printers/[^/]+/live/frame$", path):
+                self._require_manager(lambda: self._handle_live_frame_get(path))
             elif path.startswith("/api/images/"):
                 self._require_manager(lambda: self._handle_image(path))
             elif path.startswith("/"):
@@ -1808,6 +1877,10 @@ class PrintPilotHandler(http.server.BaseHTTPRequestHandler):
                 self._require_device_only(self._handle_command_poll)
             elif path == "/api/device/commands/result":
                 self._require_device_only(self._handle_command_result)
+            elif re.match(r"^/api/printers/[^/]+/live$", path):
+                self._require_manager(lambda: self._handle_live_request(path))
+            elif path == "/api/device/live/frame":
+                self._require_device_only(self._handle_live_frame_put)
             else:
                 self._send_error(404, "Not found")
         except Exception:
@@ -1921,7 +1994,9 @@ class PrintPilotHandler(http.server.BaseHTTPRequestHandler):
                              "params": json.loads(row["params"] or "{}")})
         if rows:
             self.db.commit()
-        self._send_json(200, {"commands": commands})
+        mine = {r["printer_id"] for r in self.db.execute(
+            "SELECT printer_id FROM printers WHERE device_id=?", (device_id,))}
+        self._send_json(200, {"commands": commands, "live": [p for p in LIVE.wanted() if p in mine]})
 
     def _handle_command_result(self) -> None:
         data, ok = self._parse_json_body(4096)
@@ -1950,6 +2025,72 @@ class PrintPilotHandler(http.server.BaseHTTPRequestHandler):
             log_event(self.db, "printer", f"Máy in từ chối lệnh {what}: {reason[:200]}", "warning",
                       row["printer_id"], data={"command_id": cmd_id})
         self._send_json(200, {"status": status})
+
+    # --- Live camera ----------------------------------------------------
+
+    def _handle_live_request(self, path: str) -> None:
+        printer_id = urllib.parse.unquote(path.split("/")[3])
+        data, ok = self._parse_json_body(1024)
+        if not ok:
+            return
+        printer = self.db.execute("SELECT name, last_seen FROM printers WHERE printer_id=?",
+                                  (printer_id,)).fetchone()
+        if not printer:
+            self._send_error(404, "Không tìm thấy máy in")
+            return
+        if data.get("action") == "stop":
+            LIVE.stop(printer_id)
+            self._send_json(200, {"live": False})
+            return
+        if printer["last_seen"] < _iso_ago(HEARTBEAT_STALE_SECS):
+            self._send_error(400, "Máy in đang mất kết nối")
+            return
+        if LIVE.want(printer_id):
+            log_event(self.db, "printer", f"Bắt đầu xem camera trực tiếp {printer['name'] or printer_id}",
+                      printer_id=printer_id, actor=self._actor())
+        self._send_json(200, {"live": True, "renew_seconds": LIVE_VIEWER_TTL // 2})
+
+    def _handle_live_frame_get(self, path: str) -> None:
+        printer_id = urllib.parse.unquote(path.split("/")[3])
+        q = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
+        try:
+            after = int((q.get("after") or ["0"])[0])
+        except ValueError:
+            after = 0
+        got = LIVE.get(printer_id, after)
+        if got is None:
+            self.send_response(204)
+            self.send_header("Cache-Control", "no-store")
+            self.end_headers()
+            return
+        seq, at, frame = got
+        self.send_response(200)
+        self.send_header("Content-Type", "image/jpeg")
+        self.send_header("Content-Length", str(len(frame)))
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("X-Frame-Seq", str(seq))
+        self.send_header("X-Frame-Time", f"{at:.3f}")
+        self.end_headers()
+        self.wfile.write(frame)
+
+    def _handle_live_frame_put(self) -> None:
+        data, ok = self._parse_json_body(MAX_LIVE_FRAME_BYTES * 2)
+        if not ok:
+            return
+        printer_id = data.get("printer_id")
+        if not isinstance(printer_id, str) or not isinstance(data.get("image_base64"), str):
+            self._send_error(400, "'printer_id' and 'image_base64' required")
+            return
+        try:
+            frame = base64.b64decode(data["image_base64"], validate=True)
+        except Exception:
+            self._send_error(400, "Invalid base64")
+            return
+        if not frame.startswith(b"\xff\xd8") or len(frame) > MAX_LIVE_FRAME_BYTES:
+            self._send_error(400, "Frame must be a JPEG under 2 MiB")
+            return
+        accepted = LIVE.put(printer_id, frame)
+        self._send_json(200, {"accepted": accepted})
 
     # --- Activity log ---------------------------------------------------
 

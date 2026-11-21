@@ -1996,5 +1996,60 @@ class TestPrinterCommands(ServerTestCase):
         self.assertIn("mất kết nối", data["error"])
 
 
+class TestLiveCamera(ServerTestCase):
+    JPEG = b"\xff\xd8\xff\xe0" + b"x" * 100 + b"\xff\xd9"
+
+    def setUp(self):
+        super().setUp()
+        import server
+        server.LIVE._sessions.clear()
+        _jreq(self._port, "POST", "/api/heartbeat",
+              {"device_id": "redmi", "printer_id": "a1", "status": "printing"}, token=DEVICE_TOKEN)
+
+    def _poll(self):
+        return _jreq(self._port, "POST", "/api/device/commands/poll", {"device_id": "redmi"}, token=DEVICE_TOKEN)[1]
+
+    def _put(self, token=DEVICE_TOKEN):
+        return _jreq(self._port, "POST", "/api/device/live/frame",
+                     {"printer_id": "a1", "image_base64": base64.b64encode(self.JPEG).decode()}, token=token)
+
+    def test_stream_round_trip_and_stop(self):
+        self.assertEqual(self._poll()["live"], [])
+        self.assertEqual(self._put()[1]["accepted"], False)       # nobody watching: dropped
+        code, data = _jreq(self._port, "POST", "/api/printers/a1/live", {})
+        self.assertEqual((code, data["live"]), (200, True))
+        self.assertEqual(self._poll()["live"], ["a1"])
+        self.assertEqual(self._put()[1]["accepted"], True)
+        resp = _req(self._port, "GET", "/api/printers/a1/live/frame?after=0")
+        body = resp.read()
+        self.assertEqual((resp.status, resp.getheader("Content-Type")), (200, "image/jpeg"))
+        self.assertEqual(body, self.JPEG)
+        seq = resp.getheader("X-Frame-Seq")
+        t0 = time.time()
+        resp = _req(self._port, "GET", f"/api/printers/a1/live/frame?after={seq}")
+        resp.read()
+        self.assertEqual(resp.status, 204)
+        self.assertGreater(time.time() - t0, 2)
+        _jreq(self._port, "POST", "/api/printers/a1/live", {"action": "stop"})
+        self.assertEqual(self._poll()["live"], [])
+        events = json.loads(_req(self._port, "GET", "/api/events?printer=a1").read())["events"]
+        self.assertTrue(any("xem camera trực tiếp" in e["message"] for e in events))
+
+    def test_frames_never_hit_disk(self):
+        _jreq(self._port, "POST", "/api/printers/a1/live", {})
+        self._put()
+        self.assertEqual(os.listdir(os.path.join(self._tmpdir, "snapshots")) if os.path.isdir(
+            os.path.join(self._tmpdir, "snapshots")) else [], [])
+
+    def test_auth_and_validation(self):
+        _jreq(self._port, "POST", "/api/printers/a1/live", {})
+        self.assertEqual(self._put(token=MANAGER_TOKEN)[0], 401)
+        self.assertEqual(_req(self._port, "GET", "/api/printers/a1/live/frame", token=DEVICE_TOKEN).status, 401)
+        code, _ = _jreq(self._port, "POST", "/api/device/live/frame",
+                        {"printer_id": "a1", "image_base64": base64.b64encode(b"GIF89a").decode()}, token=DEVICE_TOKEN)
+        self.assertEqual(code, 400)
+        self.assertEqual(_jreq(self._port, "POST", "/api/printers/ghost/live", {})[0], 404)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

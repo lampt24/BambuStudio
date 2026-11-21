@@ -270,9 +270,10 @@ class TestCommands(unittest.TestCase):
 
         class Client:
             results = []
-            def poll_commands(self, device_id):
-                return [{"id": "c1", "printer_id": "a1", "command": "light", "params": {"mode": "on"}},
-                        {"id": "c2", "printer_id": "ghost", "command": "pause", "params": {}}]
+            def poll_commands_full(self, device_id):
+                return {"live": [], "commands": [
+                    {"id": "c1", "printer_id": "a1", "command": "light", "params": {"mode": "on"}},
+                    {"id": "c2", "printer_id": "ghost", "command": "pause", "params": {}}]}
             def post_command_result(self, cid, ok, reason):
                 self.results.append((cid, ok))
 
@@ -282,3 +283,60 @@ class TestCommands(unittest.TestCase):
         self.assertEqual(poller.run_once(), 2)
         self.assertEqual(svc.calls, [("light", {"mode": "on"})])
         self.assertEqual(Client.results, [("c1", True), ("c2", False)])
+
+
+class TestLiveStreamer(unittest.TestCase):
+    def test_streams_until_server_stops_accepting(self):
+        import threading, time
+        from unittest import mock
+        from services.printpilot.bridge import main as bridge_main
+
+        frames = [b"\xff\xd8" + bytes([i]) * 20 + b"\xff\xd9" for i in range(1, 6)]
+        feed = iter(frames)
+
+        class Svc:
+            def __init__(self):
+                self.config = BridgeConfig(device_token="t", printer_id="a1")
+                self.camera = mock.Mock()
+                self.camera._connect_and_authenticate.return_value = mock.Mock()
+
+        class Client:
+            def __init__(self):
+                self.got = []
+            def send_live_frame(self, pid, frame):
+                self.got.append(frame)
+                return len(self.got) < 3   # server stops wanting after 3 frames
+
+        svc, client = Svc(), Client()
+        with mock.patch.object(bridge_main, "read_frame", side_effect=lambda *a, **k: (next(feed), {})):
+            streamer = bridge_main.LiveStreamer(svc, client)
+            streamer.extend()
+            for _ in range(100):
+                if not streamer._thread.is_alive():
+                    break
+                time.sleep(0.01)
+        self.assertEqual(client.got, frames[:3])
+        self.assertFalse(streamer.active())
+        self.assertIsNone(streamer.recent_frame())
+        svc.camera._connect_and_authenticate.return_value.close.assert_called()
+
+    def test_poller_starts_live_for_listed_printers(self):
+        from unittest import mock
+        from services.printpilot.bridge.main import CommandPoller
+
+        class Svc:
+            def __init__(self, pid):
+                self.config = BridgeConfig(device_token="t", printer_id=pid)
+                self.camera = object()
+                self.telemetry = None
+                self.live = None
+
+        a, b = Svc("a1"), Svc("b2")
+        poller = CommandPoller(BridgeConfig(device_token="t", server_url="http://s", device_id="redmi"), [a, b])
+        poller.client = mock.Mock()
+        poller.client.poll_commands_full.return_value = {"commands": [], "live": ["a1", "ghost"]}
+        with mock.patch("services.printpilot.bridge.main.LiveStreamer") as LS:
+            poller.run_once()
+        LS.assert_called_once_with(a, poller.client)
+        LS.return_value.extend.assert_called_once()
+        self.assertIsNone(b.live)

@@ -801,3 +801,62 @@ img { display: block; max-width: 100%; }
 .theme-menu button:hover { background: var(--surface-2); }
 .theme-menu button[aria-checked="true"] { color: var(--accent); font-weight: 600; }
 .theme-menu button[aria-checked="true"]::after { content: "✓"; margin-left: auto; }
+
+/* ---------- Card as article + live view ---------- */
+.printer { position: relative; cursor: default; }
+.printer-open {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  width: 100%;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  cursor: pointer;
+  border-radius: inherit;
+}
+.printer-open:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.live-btn {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 0;
+  border-radius: 999px;
+  padding: 6px 12px 6px 10px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #fff;
+  background: rgba(10, 14, 20, 0.72);
+  backdrop-filter: blur(6px);
+  cursor: pointer;
+}
+.live-btn svg { width: 14px; height: 14px; color: #f87171; }
+.live-btn:hover:not(:disabled) { background: rgba(10, 14, 20, 0.88); }
+.live-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.live-btn:disabled { opacity: 0.5; cursor: default; }
+.live-toggle {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  background: rgba(10, 14, 20, 0.72);
+  color: #fff;
+  backdrop-filter: blur(6px);
+}
+.live-toggle[aria-pressed="true"] { background: #dc2626; }
+.live-state {
+  position: absolute;
+  left: 10px;
+  top: 10px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  background: rgba(10, 14, 20, 0.72);
+  color: #e8edf3;
+}
+.live-state[data-state="live"] { color: #fca5a5; }
+.live-state[data-state="error"] { background: rgba(127, 29, 29, 0.85); color: #fff; }

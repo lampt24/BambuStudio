@@ -152,6 +152,33 @@ async function main() {
     assert.deepStrictEqual(none.commands, []);
     await page.keyboard.press('Escape');
 
+    console.log('4f. Live view: card button starts streaming, closing stops it');
+    const devPoll = async () => (await (await fetch(BASE + '/api/device/commands/poll', {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${DEVICE}` },
+      body: JSON.stringify({ device_id: 'redmi' }) })).json());
+    await first.locator('.live-btn').click();
+    await page.waitForFunction(() => document.getElementById('detail').open);
+    let live = [];
+    for (let i = 0; i < 20 && !live.includes('a1-01'); i++) {
+      await new Promise((r) => setTimeout(r, 200));
+      live = (await devPoll()).live;
+    }
+    assert.ok(live.includes('a1-01'));
+    for (let i = 0; i < 3; i++) {
+      const r = await fetch(BASE + '/api/device/live/frame', {
+        method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${DEVICE}` },
+        body: JSON.stringify({ printer_id: 'a1-01', image_base64: JPEG_B64 }) });
+      assert.strictEqual((await r.json()).accepted, true);
+      await new Promise((r2) => setTimeout(r2, 400));
+    }
+    await page.waitForFunction(() => document.getElementById('live-state').textContent.includes('TRỰC TIẾP'));
+    assert.ok((await page.getAttribute('#detail-img', 'src')).startsWith('blob:'));
+    assert.strictEqual(await page.textContent('#btn-live'), 'Dừng xem');
+    await page.keyboard.press('Escape');
+    await page.waitForFunction(() => !document.getElementById('detail').open);
+    await new Promise((r) => setTimeout(r, 500));
+    assert.deepStrictEqual((await devPoll()).live, []);
+
     console.log('5. Ack removes the alert from the open list');
     const before = await page.locator('#alerts .alert').count();
     assert.ok(before >= 1);

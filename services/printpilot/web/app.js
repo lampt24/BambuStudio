@@ -33,6 +33,7 @@
     detailPrinterId: null,
     detailSnapshotId: null,
     cmd: null,                   // { printerId, id, label } while a control command is in flight
+    live: null,                  // { printerId, seq, token, url, frames:[t...] } while watching
     timer: null,
     syncing: false,
   };
@@ -221,9 +222,17 @@
   }
 
   function buildPrinterCard(printerId) {
-    const card = el('button', 'printer');
-    card.type = 'button';
+    const card = el('article', 'printer');
     card.dataset.printer = printerId;
+    // Whole-card button opens details; the live button sits above it
+    const open = el('button', 'printer-open');
+    open.type = 'button';
+    open.addEventListener('click', () => openDetail(printerId));
+    const liveBtn = el('button', 'live-btn');
+    liveBtn.type = 'button';
+    liveBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>';
+    liveBtn.appendChild(el('span', '', 'Trực tiếp'));
+    liveBtn.addEventListener('click', (e) => { e.stopPropagation(); openDetail(printerId, true); });
 
     const media = el('div', 'printer-media');
     const img = el('img');
@@ -254,8 +263,8 @@
     const visionSlot = el('div', 'vision-slot');
     body.append(head, job, prog, metrics, visionSlot);
 
-    card.append(media, body);
-    card.addEventListener('click', () => openDetail(printerId));
+    media.appendChild(liveBtn);
+    card.append(open, media, body);
     return card;
   }
 
@@ -266,7 +275,10 @@
     const latest = snaps[0];
     const name = printerName(p);
 
-    card.setAttribute('aria-label', `${name}: ${STATUS[status]}. Mở chi tiết`);
+    card.querySelector('.printer-open').setAttribute('aria-label', `${name}: ${STATUS[status]}. Mở chi tiết`);
+    const liveBtn = card.querySelector('.live-btn');
+    liveBtn.disabled = status === 'offline';
+    liveBtn.setAttribute('aria-label', `Xem camera trực tiếp ${name}`);
     card.dataset.status = status;
 
     const media = card.querySelector('.printer-media');
@@ -557,13 +569,93 @@
   // ---------------------------------------------------------------------------
   // Detail dialog
   // ---------------------------------------------------------------------------
-  function openDetail(printerId) {
-    if (state.detailPrinterId !== printerId) ctlStatus('');
+  function openDetail(printerId, live = false) {
+    if (state.detailPrinterId !== printerId) {
+      ctlStatus('');
+      if (state.live) stopLive();
+    }
     state.detailPrinterId = printerId;
     state.detailSnapshotId = null;
     renderDetail();
     const dlg = $('detail');
     if (!dlg.open) dlg.showModal();
+    if (live) startLive(printerId);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Live camera (frames relayed by the server from the LAN bridge)
+  // ---------------------------------------------------------------------------
+  function liveCaption(text, kind = '') {
+    const c = $('live-state');
+    c.textContent = text;
+    c.dataset.state = kind;
+    c.hidden = !text;
+  }
+
+  function renderLiveButton() {
+    const btn = $('btn-live');
+    const on = Boolean(state.live && state.live.printerId === state.detailPrinterId);
+    btn.textContent = on ? 'Dừng xem' : 'Xem trực tiếp';
+    btn.setAttribute('aria-pressed', String(on));
+  }
+
+  async function startLive(printerId) {
+    stopLive(false);
+    const token = {};
+    state.live = { printerId, seq: 0, token, url: null, frames: [] };
+    renderLiveButton();
+    liveCaption('Đang kết nối camera…');
+    const L = state.live;
+    const renew = async () => {
+      const { status, data } = await postJsonAllowError(`/api/printers/${encodeURIComponent(printerId)}/live`, {});
+      if (status !== 200) throw new Error(data.error || 'Không bật được xem trực tiếp');
+    };
+    try {
+      await renew();
+      let lastRenew = Date.now();
+      let waitingSince = Date.now();
+      while (state.live && state.live.token === token) {
+        if (Date.now() - lastRenew > 8000) { await renew(); lastRenew = Date.now(); }
+        const res = await api(`/api/printers/${encodeURIComponent(printerId)}/live/frame?after=${L.seq}`);
+        if (!state.live || state.live.token !== token) break;
+        if (res.status === 204) {
+          if (!L.seq && Date.now() - waitingSince > 25000) throw new Error('Cầu nối chưa gửi hình. Kiểm tra Redmi.');
+          continue;
+        }
+        const blob = await res.blob();
+        L.seq = Number(res.headers.get('X-Frame-Seq')) || L.seq + 1;
+        const url = URL.createObjectURL(blob);
+        const img = $('detail-img');
+        img.dataset.id = 'live';
+        img.src = url;
+        if (L.url) URL.revokeObjectURL(L.url);
+        L.url = url;
+        const now = Date.now();
+        L.frames = L.frames.filter((t) => now - t < 15000).concat(now);
+        const fps = L.frames.length > 1 ? (L.frames.length - 1) / ((now - L.frames[0]) / 1000) : 0;
+        liveCaption(`● TRỰC TIẾP · ${fps ? fps.toFixed(1) : '…'} khung/giây · ${clock(new Date().toISOString())}`, 'live');
+        waitingSince = now;
+      }
+    } catch (err) {
+      if (err instanceof AuthError) { handleError(err); return; }
+      if (state.live && state.live.token === token) {
+        liveCaption(err.message || 'Mất kết nối xem trực tiếp', 'error');
+        stopLive(true, true);
+      }
+    }
+  }
+
+  function stopLive(tellServer = true, keepCaption = false) {
+    const L = state.live;
+    if (!L) return;
+    state.live = null;
+    if (tellServer) postJsonAllowError(`/api/printers/${encodeURIComponent(L.printerId)}/live`, { action: 'stop' }).catch(() => {});
+    if (L.url) setTimeout(() => URL.revokeObjectURL(L.url), 1000);
+    const img = $('detail-img');
+    if (img.dataset.id === 'live') delete img.dataset.id;   // let renderDetail restore the snapshot
+    if (!keepCaption) liveCaption('');
+    renderLiveButton();
+    if ($('detail').open) renderDetail();
   }
 
   // ---------------------------------------------------------------------------
@@ -665,7 +757,12 @@
     $('detail-sub').textContent = [p.model, STATUS[status], t.job_name].filter(Boolean).join(' · ');
 
     const img = $('detail-img');
-    if (current) {
+    const watching = state.live && state.live.printerId === p.printer_id;
+    renderLiveButton();
+    $('btn-live').disabled = status === 'offline' && !watching;
+    if (watching) {
+      // live frames own the image while streaming
+    } else if (current) {
       const at = current.captured_at || current.created_at;
       img.alt = `Ảnh camera lúc ${clock(at, true)}`;
       if (img.dataset.id !== current.id) setImage(img, current.id);
@@ -1051,7 +1148,12 @@
     const detail = $('detail');
     detail.querySelector('[data-close]').addEventListener('click', () => detail.close());
     detail.addEventListener('click', (e) => { if (e.target === detail) detail.close(); });
-    detail.addEventListener('close', () => { state.detailPrinterId = null; });
+    detail.addEventListener('close', () => { stopLive(); state.detailPrinterId = null; });
+    $('btn-live').addEventListener('click', () => {
+      if (state.live && state.live.printerId === state.detailPrinterId) stopLive();
+      else if (state.detailPrinterId) startLive(state.detailPrinterId);
+    });
+    window.addEventListener('pagehide', () => stopLive());
     detail.querySelectorAll('[data-cmd]').forEach((b) => b.addEventListener('click', () => runCommand(b)));
 
     const login = $('login');

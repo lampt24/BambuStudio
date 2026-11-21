@@ -28,6 +28,7 @@ try:
     from .config import BridgeConfig, load_config
     from .exceptions import BridgeError, ConfigError, FingerprintMismatchError
     from .telemetry import TelemetryClient, status_from
+    from .protocol import read_frame
 except (ImportError, ValueError):
     try:
         from services.printpilot.bridge.camera import BambuCameraClient
@@ -35,12 +36,14 @@ except (ImportError, ValueError):
         from services.printpilot.bridge.config import BridgeConfig, load_config
         from services.printpilot.bridge.exceptions import BridgeError, ConfigError, FingerprintMismatchError
         from services.printpilot.bridge.telemetry import TelemetryClient, status_from
+        from services.printpilot.bridge.protocol import read_frame
     except ImportError:
         from camera import BambuCameraClient
         from client import PrintPilotApiClient, sanitize_message
         from config import BridgeConfig, load_config
         from exceptions import BridgeError, ConfigError, FingerprintMismatchError
         from telemetry import TelemetryClient, status_from
+        from protocol import read_frame
 
 # Configure root logger
 logging.basicConfig(
@@ -67,6 +70,7 @@ class BridgeService:
             "snapshot_interval_seconds": config.snapshot_interval_seconds,
         }
         self._was_active = False
+        self.live: Optional["LiveStreamer"] = None
 
         self.client = PrintPilotApiClient(
             server_url=config.server_url,
@@ -195,9 +199,14 @@ class BridgeService:
             self.config.printer_port,
         )
         try:
-            image_bytes, meta = self.camera.capture_snapshot_with_retry(
-                retries=self.config.max_retries
-            )
+            live_frame = self.live.recent_frame() if self.live else None
+            if live_frame is not None:
+                # Live view already holds the camera connection: reuse its newest frame
+                image_bytes, meta = live_frame, {"itrack": 0, "source": "live"}
+            else:
+                image_bytes, meta = self.camera.capture_snapshot_with_retry(
+                    retries=self.config.max_retries
+                )
             # Status comes from MQTT telemetry; the camera alone cannot infer it
             status, tele = self._printer_state()
             snap_tele = dict(tele)
@@ -353,6 +362,67 @@ class BridgeService:
         return 0
 
 
+class LiveStreamer:
+    """Streams camera frames to the server while a dashboard viewer is watching."""
+
+    EXTEND_SECONDS = 8.0
+
+    def __init__(self, service: "BridgeService", client: PrintPilotApiClient):
+        self.service = service
+        self.client = client
+        self._until = 0.0
+        self._lock = threading.Lock()
+        self._thread: Optional[threading.Thread] = None
+        self._latest: Optional[tuple] = None  # (frame, monotonic time)
+
+    def extend(self) -> None:
+        with self._lock:
+            self._until = time.monotonic() + self.EXTEND_SECONDS
+            if self._thread is None or not self._thread.is_alive():
+                self._thread = threading.Thread(target=self._run, daemon=True,
+                                                name=f"live-{self.service.config.printer_id}")
+                self._thread.start()
+
+    def active(self) -> bool:
+        return time.monotonic() < self._until and self._thread is not None and self._thread.is_alive()
+
+    def recent_frame(self, max_age: float = 10.0) -> Optional[bytes]:
+        latest = self._latest
+        if self.active() and latest and time.monotonic() - latest[1] <= max_age:
+            return latest[0]
+        return None
+
+    def _run(self) -> None:
+        cam = self.service.camera
+        pid = self.service.config.printer_id
+        if cam is None:
+            return
+        sock = None
+        try:
+            sock = cam._connect_and_authenticate()
+            logger.info("Live view started for %s", pid)
+            while time.monotonic() < self._until:
+                frame, _meta = read_frame(sock, max_payload_size=self.service.config.max_frame_bytes, validate=True)
+                self._latest = (frame, time.monotonic())
+                try:
+                    if not self.client.send_live_frame(pid, frame):
+                        break  # server no longer wants frames
+                except Exception as e:
+                    logger.warning("Live frame upload failed: %s", sanitize_message(str(e)))
+                    break
+        except Exception as e:
+            logger.warning("Live view for %s stopped: %s", pid, sanitize_message(str(e)))
+        finally:
+            if sock is not None:
+                try:
+                    sock.close()
+                except Exception:
+                    pass
+            with self._lock:
+                self._until = 0.0
+            logger.info("Live view ended for %s", pid)
+
+
 class CommandPoller:
     """Pulls queued control commands from the server and runs them over MQTT."""
 
@@ -370,7 +440,14 @@ class CommandPoller:
 
     def run_once(self) -> int:
         handled = 0
-        for cmd in self.client.poll_commands(self.device_id):
+        response = self.client.poll_commands_full(self.device_id)
+        for pid in response.get("live") or []:
+            svc = self.by_printer.get(pid)
+            if svc is not None and svc.camera is not None:
+                if svc.live is None:
+                    svc.live = LiveStreamer(svc, self.client)
+                svc.live.extend()
+        for cmd in response.get("commands") or []:
             if not isinstance(cmd, dict) or not isinstance(cmd.get("id"), str):
                 continue
             svc = self.by_printer.get(cmd.get("printer_id"))

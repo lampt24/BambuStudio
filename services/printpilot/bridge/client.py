@@ -201,15 +201,29 @@ class PrintPilotApiClient:
         )
         return self._make_request("/api/heartbeat", payload)
 
+    def poll_commands_full(self, device_id: str) -> Dict[str, Any]:
+        """Queued control commands plus printers that have a live viewer."""
+        data = self._make_request("/api/device/commands/poll", {"device_id": device_id})
+        if not isinstance(data, dict):
+            return {"commands": [], "live": []}
+        commands = data.get("commands") if isinstance(data.get("commands"), list) else []
+        live = [p for p in data.get("live") or [] if isinstance(p, str)]
+        return {"commands": commands, "live": live}
+
     def poll_commands(self, device_id: str) -> list:
         """Fetch control commands the server queued for this bridge."""
-        data = self._make_request("/api/device/commands/poll", {"device_id": device_id})
-        commands = data.get("commands") if isinstance(data, dict) else None
-        return commands if isinstance(commands, list) else []
+        return self.poll_commands_full(device_id)["commands"]
 
     def post_command_result(self, command_id: str, ok: bool, reason: str) -> Dict[str, Any]:
         return self._make_request("/api/device/commands/result",
                                   {"id": command_id, "ok": ok, "reason": sanitize_message(reason)[:300]})
+
+    def send_live_frame(self, printer_id: str, frame: bytes) -> bool:
+        data = self._make_request("/api/device/live/frame", {
+            "printer_id": printer_id,
+            "image_base64": base64.b64encode(frame).decode("ascii"),
+        })
+        return bool(data.get("accepted")) if isinstance(data, dict) else False
 
     def send_with_retry(
         self,
