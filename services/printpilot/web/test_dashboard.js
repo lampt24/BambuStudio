@@ -48,8 +48,8 @@ async function main() {
   fs.writeFileSync(cfgPath, JSON.stringify({
     host: '127.0.0.1', port: PORT, data_dir: dir,
     manager_token: MANAGER, device_token: DEVICE,
-    ai_base_url: '', ai_key: '', ai_model: '', vision_model: '', webhook_url: '',
-  }));
+    ai_base_url: '', ai_key: 'sk-very-secret-key', ai_model: '', vision_model: '', webhook_url: '',
+  }, null, 2), { mode: 0o600 });
   const server = spawn('python3', [path.join(__dirname, '..', 'server.py'), cfgPath], { stdio: 'ignore' });
   let browser;
   try {
@@ -119,8 +119,33 @@ async function main() {
     // The single 401 comes from the deliberate wrong-token attempt in step 2
     assert.deepStrictEqual(errors.filter((e) => !e.includes('status of 401')), []);
 
-    console.log('8. No horizontal overflow on phone width');
+    console.log('8. Settings: load, change, save, secrets never sent to the page');
+    await page.click('#btn-settings');
+    await page.waitForFunction(() => document.getElementById('settings').open);
+    assert.ok(!(await page.content()).includes('sk-very-secret-key'));
+    assert.strictEqual(await page.getAttribute('[name=ai_key]', 'placeholder'), 'Đã lưu, để trống nếu giữ nguyên');
+    await page.fill('[name=telegram_chat_id]', '123456');
+    await page.selectOption('[name=snapshot_interval_seconds]', '300');
+    await page.check('[name=capture_when_idle]');
+    await page.click('#settings-save');
+    await page.waitForFunction(() => document.getElementById('settings-status').textContent === 'Đã lưu');
+    const saved = await (await fetch(BASE + '/api/settings', { headers: { Authorization: `Bearer ${MANAGER}` } })).json();
+    assert.strictEqual(saved.settings.telegram_chat_id, '123456');
+    assert.strictEqual(saved.settings.snapshot_interval_seconds, 300);
+    assert.strictEqual(saved.settings.capture_when_idle, true);
+    assert.strictEqual(saved.settings.ai_key_set, true);
+    const onDisk = JSON.parse(fs.readFileSync(cfgPath, 'utf8'));
+    assert.strictEqual(onDisk.ai_key, 'sk-very-secret-key');
+    assert.strictEqual(onDisk.telegram_chat_id, '123456');
+    await page.click('#settings [data-action="cleanup"]');
+    await page.waitForFunction(() => document.querySelector('[data-result="cleanup"]').dataset.state === 'ok');
+    await page.click('#settings .dialog-foot [data-close]');
+
+    console.log('9. No horizontal overflow on phone width');
     await page.setViewportSize({ width: 360, height: 780 });
+    assert.ok(!(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth)));
+    await page.click('#btn-settings');
+    await page.waitForFunction(() => document.getElementById('settings').open);
     assert.ok(!(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth)));
 
     console.log('\nOK: dashboard integration test passed');

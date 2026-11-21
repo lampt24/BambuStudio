@@ -61,6 +61,12 @@ class BridgeService:
         self._last_error: Optional[str] = None
         self.camera: Optional[BambuCameraClient] = None
         self.telemetry: Optional[TelemetryClient] = None
+        # Capture policy (server can override via heartbeat response)
+        self._policy = {
+            "capture_when_idle": False,
+            "snapshot_interval_seconds": config.snapshot_interval_seconds,
+        }
+        self._was_active = False
 
         self.client = PrintPilotApiClient(
             server_url=config.server_url,
@@ -92,9 +98,42 @@ class BridgeService:
         tele = self.telemetry.snapshot() if self.telemetry else {}
         return (status_from(tele) if tele else "unknown"), tele
 
+    def _apply_policy(self, response) -> None:
+        policy = response.get("policy") if isinstance(response, dict) else None
+        if not isinstance(policy, dict):
+            return
+        idle = policy.get("capture_when_idle")
+        if isinstance(idle, bool):
+            self._policy["capture_when_idle"] = idle
+        interval = policy.get("snapshot_interval_seconds")
+        if isinstance(interval, int) and not isinstance(interval, bool) and 30 <= interval <= 3600:
+            self._policy["snapshot_interval_seconds"] = interval
+
+    def snapshot_interval(self) -> int:
+        return int(self._policy["snapshot_interval_seconds"])
+
+    def should_capture(self) -> bool:
+        """Only spend camera/upload/AI work while a job is active.
+
+        - printing / paused / error: capture
+        - idle right after a job: one final capture of the finished print
+        - idle otherwise: only if the server enables capture_when_idle
+        - unknown (no telemetry yet): capture, since activity cannot be ruled out
+        """
+        status, _ = self._printer_state()
+        if status in ("printing", "paused", "error"):
+            self._was_active = True
+            return True
+        if status == "idle":
+            if self._was_active:
+                self._was_active = False
+                return True
+            return bool(self._policy["capture_when_idle"])
+        return True
+
     def _heartbeat(self, error: Optional[str] = None) -> None:
         status, tele = self._printer_state()
-        self.client.send_heartbeat(
+        response = self.client.send_heartbeat(
             device_id=self.config.device_id,
             printer_id=self.config.printer_id,
             status=status,
@@ -103,6 +142,7 @@ class BridgeService:
             printer_name=self.config.printer_name,
             printer_model=self.config.printer_model,
         )
+        self._apply_policy(response)
 
     def _init_camera(self) -> None:
         """Initialize camera client after validating printer settings."""
@@ -266,10 +306,18 @@ class BridgeService:
 
             if not is_hb_only:
                 # Time for snapshot?
-                if now - last_snapshot_time >= self.config.snapshot_interval_seconds:
-                    self.capture_and_send_snapshot()
-                    last_snapshot_time = time.time()
-                    last_heartbeat_time = last_snapshot_time
+                if now - last_snapshot_time >= self.snapshot_interval():
+                    if self.should_capture():
+                        self.capture_and_send_snapshot()
+                        last_snapshot_time = time.time()
+                        last_heartbeat_time = last_snapshot_time
+                    else:
+                        # Idle printer: no image; re-check soon so a new job is caught quickly
+                        logger.debug("Printer %s idle; skipping snapshot", self.config.printer_id)
+                        self.send_periodic_heartbeat()
+                        last_heartbeat_time = time.time()
+                        last_snapshot_time = (last_heartbeat_time - self.snapshot_interval()
+                                              + self.config.heartbeat_interval_seconds)
 
                 # Time for heartbeat between snapshots?
                 elif now - last_heartbeat_time >= self.config.heartbeat_interval_seconds:
@@ -288,14 +336,14 @@ class BridgeService:
                 if is_hb_only
                 else min(
                     self.config.heartbeat_interval_seconds,
-                    self.config.snapshot_interval_seconds,
+                    self.snapshot_interval(),
                 )
             )
             while self._running and elapsed < target_sleep:
                 time.sleep(sleep_step)
                 elapsed += sleep_step
                 if not is_hb_only and (
-                    time.time() - last_snapshot_time >= self.config.snapshot_interval_seconds
+                    time.time() - last_snapshot_time >= self.snapshot_interval()
                 ):
                     break
                 if time.time() - last_heartbeat_time >= self.config.heartbeat_interval_seconds:

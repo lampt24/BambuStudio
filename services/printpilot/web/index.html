@@ -26,6 +26,9 @@
 
       <div class="topbar-right">
         <span id="sync-status" class="sync" aria-live="polite">Đang tải…</span>
+        <button id="btn-settings" class="btn btn-ghost btn-icon" type="button" aria-label="Cài đặt" title="Cài đặt" hidden>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+        </button>
         <span id="user-chip" class="user-chip" hidden></span>
         <button id="btn-logout" class="btn btn-ghost btn-sm" type="button" hidden>Đăng xuất</button>
       </div>
@@ -92,6 +95,89 @@
       <h3 class="mini-title">Lịch sử ảnh</h3>
       <div id="detail-thumbs" class="thumbs" role="listbox" aria-label="Ảnh trước đó"></div>
     </div>
+  </dialog>
+
+  <!-- Settings -->
+  <dialog id="settings" class="dialog dialog-settings" aria-labelledby="settings-title">
+    <form id="settings-form" class="settings-form" novalidate>
+      <div class="dialog-head">
+        <div>
+          <h2 id="settings-title" class="dialog-title">Cài đặt</h2>
+          <p class="dialog-sub">Thay đổi có hiệu lực ngay, không cần khởi động lại.</p>
+        </div>
+        <button type="button" class="btn btn-ghost btn-icon" data-close aria-label="Đóng">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+        </button>
+      </div>
+
+      <div class="settings-body">
+        <fieldset class="group">
+          <legend>AI</legend>
+          <label class="field"><span>Địa chỉ API (OpenAI-compatible)</span>
+            <input name="ai_base_url" type="url" placeholder="http://127.0.0.1:20128/v1" autocomplete="off"></label>
+          <label class="field"><span>Khóa API</span>
+            <input name="ai_key" type="password" autocomplete="new-password" data-secret></label>
+          <div class="field-row">
+            <label class="field"><span>Model phân tích thông số</span>
+              <input name="ai_model" type="text" autocomplete="off"></label>
+            <label class="field"><span>Model đánh giá ảnh</span>
+              <input name="vision_model" type="text" placeholder="Để trống = dùng model phân tích" autocomplete="off"></label>
+          </div>
+          <label class="switch"><input name="vision_enabled" type="checkbox"><span>AI đánh giá ảnh camera</span></label>
+          <div class="actions-row">
+            <button type="button" class="btn btn-sm" data-action="test-ai">Kiểm tra kết nối</button>
+            <span class="action-result" data-result="test-ai" role="status"></span>
+          </div>
+        </fieldset>
+
+        <fieldset class="group">
+          <legend>Telegram</legend>
+          <p class="hint">Tạo bot với <b>@BotFather</b> (lệnh <code>/newbot</code>), dán token vào đây, nhắn một tin bất kỳ cho bot rồi bấm <b>Tìm chat</b>.</p>
+          <label class="field"><span>Bot token</span>
+            <input name="telegram_bot_token" type="password" autocomplete="new-password" data-secret></label>
+          <div class="field-row field-row-action">
+            <label class="field"><span>Chat ID</span>
+              <input name="telegram_chat_id" type="text" inputmode="numeric" autocomplete="off"></label>
+            <button type="button" class="btn btn-sm" data-action="find-chats">Tìm chat</button>
+          </div>
+          <ul id="chat-choices" class="chat-choices" hidden></ul>
+          <div class="actions-row">
+            <button type="button" class="btn btn-sm" data-action="test-telegram">Gửi tin thử</button>
+            <span class="action-result" data-result="telegram" role="status"></span>
+          </div>
+        </fieldset>
+
+        <fieldset class="group">
+          <legend>Camera &amp; lưu trữ</legend>
+          <label class="switch"><input name="capture_when_idle" type="checkbox"><span>Chụp ảnh cả khi máy in không hoạt động</span></label>
+          <p class="hint">Tắt: cầu nối chỉ gửi ảnh khi máy đang in, tạm dừng hoặc lỗi, cùng một ảnh lúc in xong.</p>
+          <div class="field-row">
+            <label class="field"><span>Tần suất chụp khi đang in</span>
+              <select name="snapshot_interval_seconds">
+                <option value="60">1 phút</option><option value="120">2 phút</option>
+                <option value="300">5 phút</option><option value="600">10 phút</option>
+              </select></label>
+            <label class="field"><span>Tự xóa ảnh sau</span>
+              <select name="snapshot_retention_hours">
+                <option value="6">6 giờ</option><option value="12">12 giờ</option><option value="24">1 ngày</option>
+                <option value="48">2 ngày</option><option value="72">3 ngày</option><option value="168">7 ngày</option>
+              </select></label>
+          </div>
+          <p class="hint">Ảnh gắn với cảnh báo được giữ 14 ngày để đối chiếu.</p>
+          <div class="actions-row">
+            <span id="storage-info" class="storage-info"></span>
+            <button type="button" class="btn btn-sm" data-action="cleanup">Dọn ngay</button>
+            <span class="action-result" data-result="cleanup" role="status"></span>
+          </div>
+        </fieldset>
+      </div>
+
+      <div class="dialog-foot">
+        <span id="settings-status" class="action-result" role="status"></span>
+        <button type="button" class="btn" data-close>Đóng</button>
+        <button type="submit" class="btn btn-primary" id="settings-save">Lưu</button>
+      </div>
+    </form>
   </dialog>
 
   <!-- Token login (only when Tailscale identity is unavailable) -->

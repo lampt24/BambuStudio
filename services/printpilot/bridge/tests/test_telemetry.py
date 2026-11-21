@@ -149,3 +149,46 @@ class TestMultiPrinterConfig(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestCapturePolicy(unittest.TestCase):
+    def service(self):
+        from services.printpilot.bridge.main import BridgeService
+        cfg = BridgeConfig(device_token="t", server_url="http://s", device_id="d", printer_id="p")
+        svc = BridgeService(cfg)  # printer unconfigured -> no camera/telemetry threads
+
+        class Tele:
+            state = {}
+            def snapshot(self):
+                return dict(self.state)
+        svc.telemetry = Tele()
+        return svc
+
+    def test_idle_printer_skips_capture(self):
+        svc = self.service()
+        svc.telemetry.state = {"gcode_state": "IDLE"}
+        self.assertFalse(svc.should_capture())
+
+    def test_active_then_one_final_capture(self):
+        svc = self.service()
+        svc.telemetry.state = {"gcode_state": "RUNNING"}
+        self.assertTrue(svc.should_capture())
+        svc.telemetry.state = {"gcode_state": "FINISH"}
+        self.assertTrue(svc.should_capture())   # finished print photo
+        self.assertFalse(svc.should_capture())  # then stop
+
+    def test_unknown_state_still_captures(self):
+        svc = self.service()
+        svc.telemetry.state = {}
+        self.assertTrue(svc.should_capture())
+
+    def test_server_policy_applied_and_validated(self):
+        svc = self.service()
+        svc.telemetry.state = {"gcode_state": "IDLE"}
+        svc._apply_policy({"policy": {"capture_when_idle": True, "snapshot_interval_seconds": 300}})
+        self.assertTrue(svc.should_capture())
+        self.assertEqual(svc.snapshot_interval(), 300)
+        svc._apply_policy({"policy": {"snapshot_interval_seconds": 5, "capture_when_idle": "yes"}})
+        self.assertEqual(svc.snapshot_interval(), 300)
+        svc._apply_policy({"status": "ok"})
+        self.assertTrue(svc._policy["capture_when_idle"])

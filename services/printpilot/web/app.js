@@ -504,6 +504,176 @@
   }
 
   // ---------------------------------------------------------------------------
+  // Settings dialog
+  // ---------------------------------------------------------------------------
+  const SECRET_FIELDS = ['ai_key', 'telegram_bot_token'];
+  let loadedSettings = null;
+
+  function formatBytes(n) {
+    if (!n) return '0 MB';
+    return n >= 1073741824 ? `${(n / 1073741824).toFixed(1)} GB` : `${(n / 1048576).toFixed(1)} MB`;
+  }
+  function renderStorage(st) {
+    if (!st) return;
+    $('storage-info').textContent = `${st.snapshot_count} ảnh · ${formatBytes(st.snapshot_bytes)}`
+      + (st.oldest_snapshot ? ` · cũ nhất ${relTime(st.oldest_snapshot)}` : '');
+  }
+  function result(name, text, kind = '') {
+    const node = document.querySelector(`[data-result="${name}"]`) || $('settings-status');
+    node.textContent = text;
+    node.dataset.state = kind;
+  }
+  function ensureOption(select, value) {
+    if (![...select.options].some((o) => o.value === String(value))) {
+      const o = el('option', '', String(value));
+      o.value = String(value);
+      select.appendChild(o);
+    }
+    select.value = String(value);
+  }
+
+  function fillSettings(st) {
+    loadedSettings = st;
+    const f = $('settings-form');
+    ['ai_base_url', 'ai_model', 'vision_model', 'telegram_chat_id'].forEach((k) => { f.elements[k].value = st[k] || ''; });
+    f.elements.vision_enabled.checked = Boolean(st.vision_enabled);
+    f.elements.capture_when_idle.checked = Boolean(st.capture_when_idle);
+    ensureOption(f.elements.snapshot_interval_seconds, st.snapshot_interval_seconds);
+    ensureOption(f.elements.snapshot_retention_hours, st.snapshot_retention_hours);
+    SECRET_FIELDS.forEach((k) => {
+      const input = f.elements[k];
+      input.value = '';
+      input.placeholder = st[`${k}_set`] ? 'Đã lưu, để trống nếu giữ nguyên' : 'Chưa đặt';
+    });
+  }
+
+  // Only fields the user actually changed; secrets only when typed
+  function settingsPatch() {
+    const f = $('settings-form');
+    const st = loadedSettings || {};
+    const patch = {};
+    ['ai_base_url', 'ai_model', 'vision_model', 'telegram_chat_id'].forEach((k) => {
+      const v = f.elements[k].value.trim();
+      if (v !== (st[k] || '')) patch[k] = v;
+    });
+    ['vision_enabled', 'capture_when_idle'].forEach((k) => {
+      if (f.elements[k].checked !== Boolean(st[k])) patch[k] = f.elements[k].checked;
+    });
+    ['snapshot_interval_seconds', 'snapshot_retention_hours'].forEach((k) => {
+      const v = parseInt(f.elements[k].value, 10);
+      if (v !== st[k]) patch[k] = v;
+    });
+    SECRET_FIELDS.forEach((k) => {
+      const v = f.elements[k].value.trim();
+      if (v) patch[k] = v;
+    });
+    return patch;
+  }
+
+  async function postJson(path, body) {
+    const res = await api(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}) });
+    return res.json();
+  }
+  async function postJsonAllowError(path, body) {
+    // 400 responses carry a user-facing message
+    const headers = new Headers({ 'Content-Type': 'application/json', 'X-PrintPilot-Request': '1' });
+    if (state.token) headers.set('Authorization', `Bearer ${state.token}`);
+    const res = await fetch(path, { method: 'POST', headers, body: JSON.stringify(body || {}), cache: 'no-store', credentials: 'same-origin' });
+    if (res.status === 401 || res.status === 403) throw new AuthError('unauthorized');
+    const data = await res.json().catch(() => ({}));
+    return { status: res.status, data };
+  }
+
+  async function saveSettings() {
+    const patch = settingsPatch();
+    if (!Object.keys(patch).length) return true;
+    const { status, data } = await postJsonAllowError('/api/settings', patch);
+    if (status !== 200) {
+      result('settings', data.error || 'Không lưu được', 'error');
+      return false;
+    }
+    fillSettings(data.settings);
+    result('settings', 'Đã lưu', 'ok');
+    sync();
+    return true;
+  }
+
+  async function openSettings() {
+    const dlg = $('settings');
+    $('chat-choices').hidden = true;
+    document.querySelectorAll('.action-result').forEach((n) => { n.textContent = ''; n.dataset.state = ''; });
+    try {
+      const data = await (await api('/api/settings')).json();
+      fillSettings(data.settings);
+      renderStorage(data.storage);
+      if (!dlg.open) dlg.showModal();
+    } catch (err) {
+      handleError(err);
+    }
+  }
+
+  function bindSettings() {
+    const dlg = $('settings');
+    $('btn-settings').addEventListener('click', openSettings);
+    dlg.querySelectorAll('[data-close]').forEach((b) => b.addEventListener('click', () => dlg.close()));
+    $('settings-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const btn = $('settings-save');
+      btn.disabled = true;
+      try { await saveSettings(); } catch (err) { handleError(err); } finally { btn.disabled = false; }
+    });
+
+    const busy = async (btn, fn) => {
+      btn.disabled = true;
+      try { await fn(); } catch (err) { if (err instanceof AuthError) handleError(err); else result(btn.dataset.action, 'Lỗi kết nối', 'error'); } finally { btn.disabled = false; }
+    };
+    dlg.querySelector('[data-action="test-ai"]').addEventListener('click', (e) => busy(e.currentTarget, async () => {
+      result('test-ai', 'Đang lưu và kiểm tra…');
+      if (!(await saveSettings())) { result('test-ai', ''); return; }
+      const { status, data } = await postJsonAllowError('/api/settings/test-ai', {});
+      if (status === 200 && data.ok) result('test-ai', `Kết nối tốt (${data.latency_ms} ms)`, 'ok');
+      else result('test-ai', data.error || 'Không kết nối được AI', 'error');
+    }));
+    dlg.querySelector('[data-action="find-chats"]').addEventListener('click', (e) => busy(e.currentTarget, async () => {
+      const f = $('settings-form');
+      const list = $('chat-choices');
+      list.textContent = '';
+      result('telegram', 'Đang tìm…');
+      const { status, data } = await postJsonAllowError('/api/settings/telegram-chats', { telegram_bot_token: f.elements.telegram_bot_token.value.trim() });
+      if (status !== 200 || !data.ok) { result('telegram', data.error || 'Không đọc được từ Telegram', 'error'); return; }
+      if (!data.chats.length) { result('telegram', 'Chưa thấy tin nhắn nào. Hãy nhắn cho bot một tin rồi thử lại.', 'error'); list.hidden = true; return; }
+      result('telegram', 'Chọn chat nhận cảnh báo:');
+      data.chats.forEach((c) => {
+        const li = el('li');
+        const b = el('button', '', `${c.name} · ${c.id}`);
+        b.type = 'button';
+        b.addEventListener('click', () => { f.elements.telegram_chat_id.value = c.id; list.hidden = true; result('telegram', 'Đã chọn, bấm Lưu để áp dụng.', 'ok'); });
+        li.appendChild(b);
+        list.appendChild(li);
+      });
+      list.hidden = false;
+    }));
+    dlg.querySelector('[data-action="test-telegram"]').addEventListener('click', (e) => busy(e.currentTarget, async () => {
+      const f = $('settings-form');
+      result('telegram', 'Đang gửi…');
+      const { status, data } = await postJsonAllowError('/api/settings/test-telegram', {
+        telegram_bot_token: f.elements.telegram_bot_token.value.trim(),
+        telegram_chat_id: f.elements.telegram_chat_id.value.trim(),
+      });
+      if (status === 200 && data.ok) result('telegram', 'Đã gửi, kiểm tra Telegram.', 'ok');
+      else result('telegram', data.error || 'Không gửi được', 'error');
+    }));
+    dlg.querySelector('[data-action="cleanup"]').addEventListener('click', (e) => busy(e.currentTarget, async () => {
+      if (!(await saveSettings())) return;
+      const data = await postJson('/api/maintenance/cleanup', {});
+      renderStorage(data.storage);
+      const n = (data.removed.snapshots || 0) + (data.removed.orphans || 0);
+      result('cleanup', n ? `Đã xóa ${n} ảnh` : 'Không có ảnh hết hạn', 'ok');
+      sync();
+    }));
+  }
+
+  // ---------------------------------------------------------------------------
   // Sync + auth
   // ---------------------------------------------------------------------------
   function setSync(text, isError = false) {
@@ -559,6 +729,7 @@
 
   function renderUser() {
     const chip = $('user-chip');
+    $('btn-settings').hidden = !(state.tsUser || state.token);
     if (state.tsUser) {
       chip.textContent = state.tsUser;
       chip.title = 'Đăng nhập bằng tài khoản Tailscale';
@@ -592,6 +763,7 @@
   }
 
   function bind() {
+    bindSettings();
     document.querySelectorAll('.seg').forEach((b) => b.addEventListener('click', () => {
       state.alertFilter = b.dataset.filter;
       document.querySelectorAll('.seg').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));

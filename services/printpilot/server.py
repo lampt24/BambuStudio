@@ -140,6 +140,106 @@ def load_config(path: str) -> dict[str, Any]:
 
 
 # ---------------------------------------------------------------------------
+# Runtime settings (editable from the dashboard, persisted to the config file)
+# ---------------------------------------------------------------------------
+
+DEFAULT_SNAPSHOT_RETENTION_HOURS = 48
+DEFAULT_SNAPSHOT_INTERVAL = 120
+
+# key -> (kind, default). kind: str | secret | bool | int:min:max | url
+SETTINGS_SCHEMA: dict[str, tuple[str, Any]] = {
+    "ai_base_url": ("url", ""),
+    "ai_key": ("secret", ""),
+    "ai_model": ("str", ""),
+    "vision_model": ("str", ""),
+    "vision_enabled": ("bool", True),
+    "telegram_bot_token": ("secret", ""),
+    "telegram_chat_id": ("str", ""),
+    "webhook_url": ("url", ""),
+    "capture_when_idle": ("bool", False),
+    "snapshot_interval_seconds": ("int:60:3600", DEFAULT_SNAPSHOT_INTERVAL),
+    "snapshot_retention_hours": ("int:1:720", DEFAULT_SNAPSHOT_RETENTION_HOURS),
+}
+_settings_lock = threading.Lock()
+
+
+def setting(cfg: dict, key: str) -> Any:
+    kind, default = SETTINGS_SCHEMA[key]
+    value = cfg.get(key, default)
+    return default if value is None else value
+
+
+def public_settings(cfg: dict) -> dict:
+    """Settings for the dashboard; secrets are reported only as set/unset."""
+    out: dict[str, Any] = {}
+    for key, (kind, _default) in SETTINGS_SCHEMA.items():
+        if kind == "secret":
+            out[key + "_set"] = bool(str(cfg.get(key) or "").strip())
+        else:
+            out[key] = setting(cfg, key)
+    return out
+
+
+def validate_settings_patch(patch: Any) -> dict:
+    """Validate a partial update. Raises ValueError with a user-facing message."""
+    if not isinstance(patch, dict) or not patch:
+        raise ValueError("Không có thay đổi nào")
+    clean: dict[str, Any] = {}
+    for key, value in patch.items():
+        if key not in SETTINGS_SCHEMA:
+            raise ValueError(f"Không hỗ trợ thiết lập {key!r}")
+        kind, _ = SETTINGS_SCHEMA[key]
+        if kind == "bool":
+            if not isinstance(value, bool):
+                raise ValueError(f"{key} phải là true/false")
+        elif kind.startswith("int:"):
+            _, lo, hi = kind.split(":")
+            if isinstance(value, bool) or not isinstance(value, int) or not int(lo) <= value <= int(hi):
+                raise ValueError(f"{key} phải là số nguyên từ {lo} đến {hi}")
+        else:
+            if not isinstance(value, str) or len(value) > 2048 or any(c in value for c in "\r\n\x00"):
+                raise ValueError(f"{key} không hợp lệ")
+            value = value.strip()
+            if kind == "url" and value:
+                parsed = urllib.parse.urlparse(value)
+                if parsed.scheme not in ("http", "https") or not parsed.hostname:
+                    raise ValueError(f"{key} phải là địa chỉ http(s)")
+        clean[key] = value
+    return clean
+
+
+def apply_settings(cfg: dict, patch: dict) -> None:
+    """Update the live config and persist it atomically (0600) when a path is known."""
+    with _settings_lock:
+        path = cfg.get("_config_path")
+        if path:
+            with open(path, encoding="utf-8") as fh:
+                on_disk = json.load(fh)
+            on_disk.update(patch)
+            tmp = f"{path}.tmp-{os.getpid()}"
+            fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+            try:
+                with os.fdopen(fd, "w", encoding="utf-8") as fh:
+                    json.dump(on_disk, fh, indent=2, ensure_ascii=False)
+                    fh.write("\n")
+                os.replace(tmp, path)
+            except Exception:
+                try:
+                    os.unlink(tmp)
+                except OSError:
+                    pass
+                raise
+        cfg.update(patch)
+
+
+def bridge_policy(cfg: dict) -> dict:
+    return {
+        "capture_when_idle": bool(setting(cfg, "capture_when_idle")),
+        "snapshot_interval_seconds": int(setting(cfg, "snapshot_interval_seconds")),
+    }
+
+
+# ---------------------------------------------------------------------------
 # Tailscale identity (dashboard login without a token)
 # ---------------------------------------------------------------------------
 
@@ -946,6 +1046,47 @@ def format_telegram_text(alert: sqlite3.Row) -> str:
     return "\n".join(lines)
 
 
+def telegram_api(token: str, method: str, payload: dict | None = None) -> tuple[bool, Any]:
+    """Call the Telegram Bot API. Returns (ok, result_or_description). Never logs the token."""
+    conn_h = None
+    try:
+        import ssl
+        conn_h = http.client.HTTPSConnection(
+            "api.telegram.org", 443, context=ssl.create_default_context(), timeout=15)
+        body = json.dumps(payload or {}).encode()
+        conn_h.request("POST", f"/bot{token}/{method}", body=body,
+                       headers={"Content-Type": "application/json", "User-Agent": "PrintPilot/1.0"})
+        resp = conn_h.getresponse()
+        raw = resp.read(1024 * 1024)
+        try:
+            data = json.loads(raw)
+        except ValueError:
+            return False, f"HTTP {resp.status}"
+        if data.get("ok"):
+            return True, data.get("result")
+        return False, str(data.get("description") or f"HTTP {resp.status}")[:200]
+    except Exception as exc:
+        return False, type(exc).__name__
+    finally:
+        if conn_h is not None:
+            conn_h.close()
+
+
+def telegram_recent_chats(token: str) -> tuple[bool, Any]:
+    ok, result = telegram_api(token, "getUpdates", {"limit": 50, "timeout": 0})
+    if not ok:
+        return ok, result
+    chats: dict[str, dict] = {}
+    for upd in result or []:
+        msg = upd.get("message") or upd.get("channel_post") or upd.get("my_chat_member") or {}
+        chat = msg.get("chat") if isinstance(msg, dict) else None
+        if isinstance(chat, dict) and "id" in chat:
+            name = chat.get("title") or " ".join(filter(None, [chat.get("first_name"), chat.get("last_name")])) \
+                or chat.get("username") or str(chat["id"])
+            chats[str(chat["id"])] = {"id": str(chat["id"]), "name": str(name)[:80], "type": chat.get("type", "")}
+    return True, list(chats.values())
+
+
 def send_telegram(cfg: dict, alert: sqlite3.Row) -> bool:
     """Send alert text via Telegram Bot API. Never logs the bot token."""
     token = str(cfg.get("telegram_bot_token", "")).strip()
@@ -1115,7 +1256,8 @@ class VisionWorker(threading.Thread):
                 "status": row["snap_status"],
             }
             vision_cfg = self.cfg
-            if not vision_cfg.get("vision_model") and not vision_cfg.get("ai_base_url"):
+            if not setting(vision_cfg, "vision_enabled") or (
+                    not vision_cfg.get("vision_model") and not vision_cfg.get("ai_base_url")):
                 # Vision not configured – skip
                 conn.execute(
                     "UPDATE snapshots SET vision_status='skipped' WHERE id=?",
@@ -1233,7 +1375,7 @@ class HeartbeatMonitor(threading.Thread):
             self._stop.wait(60)
 
     def _check(self, conn: sqlite3.Connection) -> None:
-        prune_old_data(conn)
+        prune_old_data(conn, self.cfg, self.cfg.get("_data_dir"))
         stale_cutoff = time.strftime(
             "%Y-%m-%dT%H:%M:%SZ",
             time.gmtime(time.time() - HEARTBEAT_STALE_SECS),
@@ -1253,10 +1395,44 @@ class HeartbeatMonitor(threading.Thread):
                     send_webhook(self.cfg, alert_row, conn)
 
 
-def prune_old_data(conn: sqlite3.Connection) -> None:
-    cutoff = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(time.time() - RETENTION_SECS))
-    for table, column in (("analyses", "file_path"), ("snapshots", "image_path")):
-        rows = conn.execute(f"SELECT id, {column} FROM {table} WHERE created_at < ?", (cutoff,)).fetchall()
+def _iso_ago(seconds: float) -> str:
+    return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(time.time() - seconds))
+
+
+def storage_stats(conn: sqlite3.Connection, data_dir: str | None) -> dict:
+    count = conn.execute("SELECT COUNT(*) FROM snapshots").fetchone()[0]
+    size = 0
+    if data_dir:
+        snap_dir = os.path.join(data_dir, "snapshots")
+        try:
+            with os.scandir(snap_dir) as it:
+                for entry in it:
+                    if entry.is_file():
+                        size += entry.stat().st_size
+        except OSError:
+            pass
+    oldest = conn.execute("SELECT MIN(created_at) FROM snapshots").fetchone()[0]
+    return {"snapshot_count": count, "snapshot_bytes": size, "oldest_snapshot": oldest}
+
+
+def prune_old_data(conn: sqlite3.Connection, cfg: dict | None = None,
+                   data_dir: str | None = None) -> dict:
+    """Delete expired data. Snapshots follow snapshot_retention_hours, except
+    images attached to an alert, which live as long as the alert (14 days)."""
+    removed = {"snapshots": 0, "analyses": 0, "orphans": 0}
+    cutoff = _iso_ago(RETENTION_SECS)
+    hours = setting(cfg, "snapshot_retention_hours") if cfg is not None else DEFAULT_SNAPSHOT_RETENTION_HOURS
+    snap_cutoff = _iso_ago(int(hours) * 3600)
+    plans = (
+        ("analyses", "file_path",
+         "SELECT id, file_path FROM analyses WHERE created_at < ?", (cutoff,)),
+        ("snapshots", "image_path",
+         """SELECT id, image_path FROM snapshots
+            WHERE (created_at < ? AND id NOT IN (SELECT snapshot_id FROM alerts WHERE snapshot_id IS NOT NULL))
+               OR created_at < ?""", (snap_cutoff, cutoff)),
+    )
+    for table, column, query, params in plans:
+        rows = conn.execute(query, params).fetchall()
         for row in rows:
             try:
                 os.remove(row[column])
@@ -1268,8 +1444,27 @@ def prune_old_data(conn: sqlite3.Connection) -> None:
             if table == "snapshots":
                 conn.execute("DELETE FROM vision_queue WHERE snapshot_id=?", (row["id"],))
             conn.execute(f"DELETE FROM {table} WHERE id=?", (row["id"],))
+            removed[table] += 1
     conn.execute("DELETE FROM alerts WHERE created_at < ?", (cutoff,))
     conn.commit()
+    # Image files left behind without a database row (crash mid-write, manual edits)
+    if data_dir:
+        snap_dir = os.path.join(data_dir, "snapshots")
+        known = {r[0] for r in conn.execute("SELECT image_path FROM snapshots")}
+        grace = time.time() - 600
+        try:
+            with os.scandir(snap_dir) as it:
+                for entry in it:
+                    if (entry.is_file() and entry.name.endswith(".jpg") and entry.path not in known
+                            and entry.stat().st_mtime < grace):
+                        try:
+                            os.remove(entry.path)
+                            removed["orphans"] += 1
+                        except OSError:
+                            pass
+        except OSError:
+            pass
+    return removed
 
 
 # ---------------------------------------------------------------------------
@@ -1425,6 +1620,8 @@ class PrintPilotHandler(http.server.BaseHTTPRequestHandler):
                 self._handle_whoami()
             elif path == "/api/state":
                 self._require_manager(self._handle_state)
+            elif path == "/api/settings":
+                self._require_manager(self._handle_settings_get)
             elif path.startswith("/api/images/"):
                 self._require_manager(lambda: self._handle_image(path))
             elif path.startswith("/"):
@@ -1446,6 +1643,16 @@ class PrintPilotHandler(http.server.BaseHTTPRequestHandler):
                 self._require_device(self._handle_heartbeat)
             elif re.match(r"^/api/alerts/[^/]+/ack$", path):
                 self._require_manager(lambda: self._handle_alert_ack(path))
+            elif path == "/api/settings":
+                self._require_manager(self._handle_settings_update)
+            elif path == "/api/settings/test-telegram":
+                self._require_manager(self._handle_test_telegram)
+            elif path == "/api/settings/telegram-chats":
+                self._require_manager(self._handle_telegram_chats)
+            elif path == "/api/settings/test-ai":
+                self._require_manager(self._handle_test_ai)
+            elif path == "/api/maintenance/cleanup":
+                self._require_manager(self._handle_cleanup)
             else:
                 self._send_error(404, "Not found")
         except Exception:
@@ -1465,6 +1672,103 @@ class PrintPilotHandler(http.server.BaseHTTPRequestHandler):
         fn()
 
     # --- Endpoint handlers ----------------------------------------------
+
+    # --- Settings -------------------------------------------------------
+
+    def _handle_settings_get(self) -> None:
+        self._send_json(200, {"settings": public_settings(self.cfg),
+                              "storage": storage_stats(self.db, self.data_dir)})
+
+    def _handle_settings_update(self) -> None:
+        data, ok = self._parse_json_body(16 * 1024)
+        if not ok:
+            return
+        try:
+            patch = validate_settings_patch(data)
+            apply_settings(self.cfg, patch)
+        except ValueError as exc:
+            self._send_error(400, str(exc))
+            return
+        except OSError:
+            log.exception("Could not persist settings")
+            self._send_error(500, "Không lưu được cấu hình")
+            return
+        log.info("Settings updated: %s", ", ".join(sorted(patch)))
+        self._send_json(200, {"settings": public_settings(self.cfg)})
+
+    def _telegram_token(self, data: dict | None) -> str:
+        # Allow testing a token typed in the form before it is saved
+        candidate = (data or {}).get("telegram_bot_token")
+        if isinstance(candidate, str) and candidate.strip():
+            return candidate.strip()
+        return str(self.cfg.get("telegram_bot_token") or "").strip()
+
+    def _handle_test_telegram(self) -> None:
+        data, ok = self._parse_json_body(4096)
+        if not ok:
+            return
+        token = self._telegram_token(data)
+        chat_id = str(data.get("telegram_chat_id") or self.cfg.get("telegram_chat_id") or "").strip()
+        if not token or not chat_id:
+            self._send_error(400, "Cần bot token và chat id")
+            return
+        sent, detail = telegram_api(token, "sendMessage", {
+            "chat_id": chat_id,
+            "text": "\u2705 PrintPilot: tin nhắn thử. Cảnh báo máy in sẽ được gửi về đây.",
+        })
+        if sent:
+            self._send_json(200, {"ok": True})
+        else:
+            self._send_json(200, {"ok": False, "error": detail})
+
+    def _handle_telegram_chats(self) -> None:
+        data, ok = self._parse_json_body(4096)
+        if not ok:
+            return
+        token = self._telegram_token(data)
+        if not token:
+            self._send_error(400, "Cần bot token")
+            return
+        found, result = telegram_recent_chats(token)
+        if found:
+            self._send_json(200, {"ok": True, "chats": result})
+        else:
+            self._send_json(200, {"ok": False, "error": result})
+
+    def _handle_test_ai(self) -> None:
+        data, ok = self._parse_json_body(1024)
+        if not ok:
+            return
+        base = str(self.cfg.get("ai_base_url") or "").strip()
+        key = str(self.cfg.get("ai_key") or "").strip()
+        model = str(self.cfg.get("ai_model") or "").strip()
+        if not base or not key or not model:
+            self._send_error(400, "Cần địa chỉ AI, khóa và model")
+            return
+        started = time.monotonic()
+        try:
+            response = _openai_post(base, key, "/chat/completions", {
+                "model": model,
+                "messages": [{"role": "user", "content": "Reply with the single word: OK"}],
+                "max_tokens": 5,
+                "stream": False,
+            })
+            reply = response["choices"][0]["message"]["content"]
+        except (KeyError, IndexError, TypeError):
+            self._send_json(200, {"ok": False, "error": "Phản hồi AI không đúng định dạng"})
+            return
+        except AIError as exc:
+            self._send_json(200, {"ok": False, "error": str(exc)[:200]})
+            return
+        self._send_json(200, {"ok": True, "latency_ms": int((time.monotonic() - started) * 1000),
+                              "reply": str(reply)[:40]})
+
+    def _handle_cleanup(self) -> None:
+        data, ok = self._parse_json_body(1024)
+        if not ok:
+            return
+        removed = prune_old_data(self.db, self.cfg, self.data_dir)
+        self._send_json(200, {"removed": removed, "storage": storage_stats(self.db, self.data_dir)})
 
     def _handle_whoami(self) -> None:
         ident = self._tailscale_user()
@@ -1545,7 +1849,7 @@ class PrintPilotHandler(http.server.BaseHTTPRequestHandler):
         cfg = self.cfg
         config_info = {
             "ai_configured":           bool(cfg.get("ai_base_url") and cfg.get("ai_key")),
-            "vision_configured":       bool(cfg.get("vision_model") or cfg.get("ai_model")),
+            "vision_configured":       bool(setting(cfg, "vision_enabled") and (cfg.get("vision_model") or cfg.get("ai_model"))),
             "notifications_configured": notifications_configured(cfg),
         }
 
@@ -1921,7 +2225,7 @@ class PrintPilotHandler(http.server.BaseHTTPRequestHandler):
                 if alert_row:
                     send_webhook(self.cfg, alert_row, self.db)
 
-        self._send_json(200, {"status": "ok"})
+        self._send_json(200, {"status": "ok", "policy": bridge_policy(self.cfg)})
 
     def _handle_image(self, path: str) -> None:
         m = re.match(r"^/api/images/([a-zA-Z0-9_-]+)$", path)
@@ -2068,6 +2372,7 @@ def run_server(cfg: dict) -> None:
     os.makedirs(os.path.join(data_dir, "analyses"), exist_ok=True)
     os.makedirs(os.path.join(data_dir, "snapshots"), exist_ok=True)
 
+    cfg["_data_dir"] = data_dir
     db_path = os.path.join(data_dir, "printpilot.db")
     conn = open_db(db_path)
     conn.close()
@@ -2111,6 +2416,7 @@ def main() -> None:
         log.error("Config error: %s", exc)
         sys.exit(1)
 
+    cfg["_config_path"] = os.path.abspath(config_path)
     run_server(cfg)
 
 

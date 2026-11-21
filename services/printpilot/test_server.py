@@ -1763,5 +1763,98 @@ class TestVisionAlertGating(unittest.TestCase):
         self.assertEqual(len(self._vision_alerts()), 2)
 
 
+class TestSettings(ServerTestCase):
+    def setUp(self):
+        super().setUp()
+        self._cfg_path = os.path.join(self._tmpdir, "server.json")
+        with open(self._cfg_path, "w") as fh:
+            json.dump(dict(self._cfg, ai_key="sk-secret-123"), fh)
+        self._cfg["ai_key"] = "sk-secret-123"
+        self._cfg["_config_path"] = self._cfg_path
+
+    def test_get_masks_secrets(self):
+        resp = _req(self._port, "GET", "/api/settings")
+        raw = resp.read().decode()
+        self.assertEqual(resp.status, 200)
+        self.assertNotIn("sk-secret-123", raw)
+        data = json.loads(raw)
+        self.assertTrue(data["settings"]["ai_key_set"])
+        self.assertFalse(data["settings"]["telegram_bot_token_set"])
+        self.assertIn("snapshot_count", data["storage"])
+
+    def test_update_persists_with_private_mode(self):
+        code, data = _jreq(self._port, "POST", "/api/settings", {
+            "telegram_bot_token": "123:abc", "telegram_chat_id": "42",
+            "capture_when_idle": True, "snapshot_retention_hours": 12})
+        self.assertEqual(code, 200)
+        self.assertTrue(data["settings"]["telegram_bot_token_set"])
+        with open(self._cfg_path) as fh:
+            on_disk = json.load(fh)
+        self.assertEqual((on_disk["telegram_chat_id"], on_disk["snapshot_retention_hours"]), ("42", 12))
+        self.assertEqual(on_disk["ai_key"], "sk-secret-123")  # untouched
+        self.assertEqual(os.stat(self._cfg_path).st_mode & 0o777, 0o600)
+        self.assertEqual(self._cfg["telegram_bot_token"], "123:abc")  # live
+
+    def test_update_validation(self):
+        for bad in ({"snapshot_interval_seconds": 5}, {"ai_base_url": "ftp://x"},
+                    {"unknown": 1}, {"vision_enabled": "yes"}, {}):
+            code, _ = _jreq(self._port, "POST", "/api/settings", bad)
+            self.assertEqual(code, 400, bad)
+
+    def test_settings_require_manager(self):
+        code, _ = _jreq(self._port, "POST", "/api/settings", {"vision_enabled": False}, token=DEVICE_TOKEN)
+        self.assertEqual(code, 401)
+        self.assertEqual(_req(self._port, "GET", "/api/settings", token=None).status, 401)
+
+    def test_heartbeat_returns_policy(self):
+        _jreq(self._port, "POST", "/api/settings", {"capture_when_idle": True, "snapshot_interval_seconds": 300})
+        code, data = _jreq(self._port, "POST", "/api/heartbeat",
+                           {"device_id": "r", "printer_id": "p", "status": "idle"}, token=DEVICE_TOKEN)
+        self.assertEqual(code, 200)
+        self.assertEqual(data["policy"], {"capture_when_idle": True, "snapshot_interval_seconds": 300})
+
+
+class TestRetention(unittest.TestCase):
+    def setUp(self):
+        from server import open_db
+        self._dir = tempfile.mkdtemp(prefix="pp_ret_")
+        os.makedirs(os.path.join(self._dir, "snapshots"))
+        self._conn = open_db(os.path.join(self._dir, "t.db"))
+
+    def _snap(self, sid, age_hours):
+        path = os.path.join(self._dir, "snapshots", f"{sid}.jpg")
+        with open(path, "wb") as fh:
+            fh.write(b"\xff\xd8")
+        created = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(time.time() - age_hours * 3600))
+        self._conn.execute(
+            "INSERT INTO snapshots (id,created_at,device_id,printer_id,captured_at,status,image_path) VALUES (?,?,?,?,?,?,?)",
+            (sid, created, "d", "p", created, "idle", path))
+        self._conn.commit()
+        return path
+
+    def test_prunes_by_configured_hours_but_keeps_alert_evidence(self):
+        from server import prune_old_data, upsert_alert
+        old = self._snap("old", 30)
+        evidence = self._snap("evidence", 30)
+        fresh = self._snap("fresh", 1)
+        upsert_alert(self._conn, "vision", "warning", "spaghetti", "d", "p", "evidence")
+        removed = prune_old_data(self._conn, {"snapshot_retention_hours": 24}, self._dir)
+        self.assertEqual(removed["snapshots"], 1)
+        self.assertFalse(os.path.exists(old))
+        self.assertTrue(os.path.exists(evidence))
+        self.assertTrue(os.path.exists(fresh))
+
+    def test_removes_orphan_files(self):
+        from server import prune_old_data
+        orphan = os.path.join(self._dir, "snapshots", "orphan.jpg")
+        with open(orphan, "wb") as fh:
+            fh.write(b"x")
+        os.utime(orphan, (time.time() - 3600, time.time() - 3600))
+        self._snap("keep", 1)
+        removed = prune_old_data(self._conn, {"snapshot_retention_hours": 24}, self._dir)
+        self.assertEqual(removed["orphans"], 1)
+        self.assertFalse(os.path.exists(orphan))
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
