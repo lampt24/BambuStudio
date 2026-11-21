@@ -100,10 +100,27 @@ async function main() {
     assert.strictEqual(await page.evaluate(() => window.__xss), undefined);
     assert.ok((await page.textContent('#alerts')).includes('<img src=x'));
 
+    console.log('4a. Tabs switch views and follow the URL hash');
+    const tab = async (name) => {
+      await page.click(`.nav-item[data-tab="${name}"]`);
+      await page.waitForFunction((n) => !document.querySelector(`.view[data-view="${n}"]`).hidden, name);
+    };
+    for (const name of ['alerts', 'ai', 'log', 'printers']) {
+      await tab(name);
+      assert.strictEqual(await page.getAttribute(`.nav-item[data-tab="${name}"]`, 'aria-current'), 'page');
+      assert.strictEqual(await page.locator('.view:not([hidden])').count(), 1);
+    }
+    await page.goto(BASE + '/#log');
+    await page.waitForSelector('#events .event');
+    assert.ok(await page.isHidden('.view[data-view="printers"]'));
+    await tab('printers');
+    assert.strictEqual((await page.textContent('#alerts-count')).trim(), '1');
+
     console.log('4b. Alerts are attributed per printer');
     const second = page.locator('.printer').nth(1);
-    assert.strictEqual((await second.locator('.alert-count').textContent()).trim(), '1 cảnh báo');
+    assert.strictEqual((await second.locator('.alert-count').textContent()).trim(), '1');
     assert.ok(await first.locator('.alert-count').isHidden());
+    await tab('alerts');
     assert.strictEqual(await page.locator('#alert-printers .chip').count(), 3); // all + 2 printers
     await page.locator('#alert-printers .chip', { hasText: 'A1 trái' }).click();
     assert.strictEqual(await page.locator('#alerts .alert').count(), 0);
@@ -112,13 +129,16 @@ async function main() {
     await page.locator('#alert-printers .chip', { hasText: 'Tất cả' }).click();
 
     console.log('4c. Activity log lists events with printer filter');
+    await tab('log');
     await page.waitForSelector('#events .event');
+    assert.strictEqual(await page.textContent('#events .day'), 'Hôm nay');
     assert.ok((await page.textContent('#events')).includes('Phát hiện máy in mới'));
     await page.selectOption('#ev-printer', 'a1-02');
     await page.waitForFunction(() => [...document.querySelectorAll('#events .event')].every((e) => !e.textContent.includes('A1 trái')));
     await page.selectOption('#ev-printer', '');
 
     console.log('4d. Detail dialog shows that printer\'s alerts and activity');
+    await tab('printers');
     await second.click();
     await page.waitForFunction(() => document.querySelectorAll('#detail-alerts .alert').length === 1);
     await page.waitForSelector('#detail-events .event');
@@ -173,21 +193,25 @@ async function main() {
     }
     await page.waitForFunction(() => document.getElementById('live-state').textContent.includes('TRỰC TIẾP'));
     assert.ok((await page.getAttribute('#detail-img', 'src')).startsWith('blob:'));
-    assert.strictEqual(await page.textContent('#btn-live'), 'Dừng xem');
+    assert.strictEqual(await page.getAttribute('#btn-live', 'aria-label'), 'Dừng xem');
+    assert.strictEqual(await page.getAttribute('#btn-live', 'aria-pressed'), 'true');
     await page.keyboard.press('Escape');
     await page.waitForFunction(() => !document.getElementById('detail').open);
     await new Promise((r) => setTimeout(r, 500));
     assert.deepStrictEqual((await devPoll()).live, []);
 
     console.log('5. Ack removes the alert from the open list');
+    await tab('alerts');
     const before = await page.locator('#alerts .alert').count();
     assert.ok(before >= 1);
-    await page.locator('#alerts .alert button').first().click();
+    await page.locator('#alerts .alert .ack-btn').first().click();
     await page.waitForFunction((n) => document.querySelectorAll('#alerts .alert').length === n - 1, before);
     await page.waitForFunction(() => document.getElementById('events').textContent.includes('Đã xử lý cảnh báo'));
-    assert.ok(await second.locator('.alert-count').isHidden());
+    assert.ok(await page.evaluate(() => document.querySelector('.printer:nth-child(2) .alert-count').hidden));
+    assert.ok(await page.isHidden('#alerts-count'));
 
     console.log('6. Detail dialog opens and closes');
+    await tab('printers');
     await first.click();
     assert.ok(await page.evaluate(() => document.getElementById('detail').open));
     assert.ok((await page.textContent('#detail-metrics')).includes('42%'));
@@ -241,9 +265,14 @@ async function main() {
     assert.strictEqual(await page.getAttribute('html', 'data-theme'), null);
     assert.strictEqual(await bg(), darkBg); // OS is dark
 
-    console.log('9. No horizontal overflow on phone width');
+    console.log('9. Phone: bottom tab bar, no horizontal overflow');
     await page.setViewportSize({ width: 360, height: 780 });
     assert.ok(!(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth)));
+    const navBox = await page.locator('.nav').boundingBox();
+    assert.ok(Math.abs(navBox.y + navBox.height - 780) < 2, `tab bar should sit at the bottom, got y=${navBox.y}`);
+    await tab('log');
+    assert.ok(!(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth)));
+    await tab('printers');
     await page.click('#btn-settings');
     await page.waitForFunction(() => document.getElementById('settings').open);
     assert.ok(!(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth)));

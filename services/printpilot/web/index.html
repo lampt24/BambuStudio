@@ -2,98 +2,201 @@
 <html lang="vi">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="color-scheme" content="light dark">
   <title>PrintPilot</title>
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2310b981' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9V3h12v6'/%3E%3Crect x='3' y='9' width='18' height='8' rx='2'/%3E%3Cpath d='M7 17v4h10v-4'/%3E%3C/svg%3E">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23f05a28'/%3E%3Cpath d='M9 11V7h14v4M7 11h18v9H7zM10 20v5h12v-5' fill='none' stroke='%23fff' stroke-width='2.4' stroke-linejoin='round'/%3E%3C/svg%3E">
+  <link rel="preload" href="fonts/be-vietnam-pro-vietnamese-400-normal.woff2" as="font" type="font/woff2" crossorigin>
   <script src="theme.js"></script>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <header class="topbar">
-    <div class="topbar-inner">
-      <a class="brand" href="/" aria-label="PrintPilot">
-        <span class="brand-mark" aria-hidden="true">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9V3h12v6"/><rect x="3" y="9" width="18" height="8" rx="2"/><path d="M7 17v4h10v-4"/></svg>
-        </span>
-        <span class="brand-name">PrintPilot</span>
+<svg xmlns="http://www.w3.org/2000/svg" class="sprite" aria-hidden="true">
+<symbol id="i-printer" viewBox="0 0 24 24"><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" /> <path d="M6 9V3a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v6" /> <rect x="6" y="14" width="12" height="8" rx="1" /></symbol>
+<symbol id="i-bell" viewBox="0 0 24 24"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" /> <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" /></symbol>
+<symbol id="i-sparkles" viewBox="0 0 24 24"><path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z" /> <path d="M20 3v4" /> <path d="M22 5h-4" /> <path d="M4 17v2" /> <path d="M5 18H3" /></symbol>
+<symbol id="i-scroll-text" viewBox="0 0 24 24"><path d="M15 12h-5" /> <path d="M15 8h-5" /> <path d="M19 17V5a2 2 0 0 0-2-2H4" /> <path d="M8 21h12a2 2 0 0 0 2-2v-1a1 1 0 0 0-1-1H11a1 1 0 0 0-1 1v1a2 2 0 1 1-4 0V5a2 2 0 1 0-4 0v2a1 1 0 0 0 1 1h3" /></symbol>
+<symbol id="i-settings" viewBox="0 0 24 24"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" /> <circle cx="12" cy="12" r="3" /></symbol>
+<symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4" /> <path d="M12 2v2" /> <path d="M12 20v2" /> <path d="m4.93 4.93 1.41 1.41" /> <path d="m17.66 17.66 1.41 1.41" /> <path d="M2 12h2" /> <path d="M20 12h2" /> <path d="m6.34 17.66-1.41 1.41" /> <path d="m19.07 4.93-1.41 1.41" /></symbol>
+<symbol id="i-moon" viewBox="0 0 24 24"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z" /></symbol>
+<symbol id="i-sun-moon" viewBox="0 0 24 24"><path d="M12 8a2.83 2.83 0 0 0 4 4 4 4 0 1 1-4-4" /> <path d="M12 2v2" /> <path d="M12 20v2" /> <path d="m4.9 4.9 1.4 1.4" /> <path d="m17.7 17.7 1.4 1.4" /> <path d="M2 12h2" /> <path d="M20 12h2" /> <path d="m6.3 17.7-1.4 1.4" /> <path d="m19.1 4.9-1.4 1.4" /></symbol>
+<symbol id="i-log-out" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /> <polyline points="16 17 21 12 16 7" /> <line x1="21" x2="9" y1="12" y2="12" /></symbol>
+<symbol id="i-play" viewBox="0 0 24 24"><polygon points="6 3 20 12 6 21 6 3" /></symbol>
+<symbol id="i-pause" viewBox="0 0 24 24"><rect x="14" y="4" width="4" height="16" rx="1" /> <rect x="6" y="4" width="4" height="16" rx="1" /></symbol>
+<symbol id="i-square" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="3" rx="2" /></symbol>
+<symbol id="i-lightbulb" viewBox="0 0 24 24"><path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5" /> <path d="M9 18h6" /> <path d="M10 22h4" /></symbol>
+<symbol id="i-lightbulb-off" viewBox="0 0 24 24"><path d="M16.8 11.2c.8-.9 1.2-2 1.2-3.2a6 6 0 0 0-9.3-5" /> <path d="m2 2 20 20" /> <path d="M6.3 6.3a4.67 4.67 0 0 0 1.2 5.2c.7.7 1.3 1.5 1.5 2.5" /> <path d="M9 18h6" /> <path d="M10 22h4" /></symbol>
+<symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18" /> <path d="m6 6 12 12" /></symbol>
+<symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5" /></symbol>
+<symbol id="i-check-check" viewBox="0 0 24 24"><path d="M18 6 7 17l-5-5" /> <path d="m22 10-7.5 7.5L13 16" /></symbol>
+<symbol id="i-video" viewBox="0 0 24 24"><path d="m16 13 5.223 3.482a.5.5 0 0 0 .777-.416V7.87a.5.5 0 0 0-.752-.432L16 10.5" /> <rect x="2" y="6" width="14" height="12" rx="2" /></symbol>
+<symbol id="i-maximize-2" viewBox="0 0 24 24"><polyline points="15 3 21 3 21 9" /> <polyline points="9 21 3 21 3 15" /> <line x1="21" x2="14" y1="3" y2="10" /> <line x1="3" x2="10" y1="21" y2="14" /></symbol>
+<symbol id="i-thermometer" viewBox="0 0 24 24"><path d="M14 4v10.54a4 4 0 1 1-4 0V4a2 2 0 0 1 4 0Z" /></symbol>
+<symbol id="i-layers" viewBox="0 0 24 24"><path d="m12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z" /> <path d="m22 17.65-9.17 4.16a2 2 0 0 1-1.66 0L2 17.65" /> <path d="m22 12.65-9.17 4.16a2 2 0 0 1-1.66 0L2 12.65" /></symbol>
+<symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /> <polyline points="12 6 12 12 16 14" /></symbol>
+<symbol id="i-fan" viewBox="0 0 24 24"><path d="M10.827 16.379a6.082 6.082 0 0 1-8.618-7.002l5.412 1.45a6.082 6.082 0 0 1 7.002-8.618l-1.45 5.412a6.082 6.082 0 0 1 8.618 7.002l-5.412-1.45a6.082 6.082 0 0 1-7.002 8.618l1.45-5.412Z" /> <path d="M12 12v.01" /></symbol>
+<symbol id="i-triangle-alert" viewBox="0 0 24 24"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3" /> <path d="M12 9v4" /> <path d="M12 17h.01" /></symbol>
+<symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /> <path d="M12 16v-4" /> <path d="M12 8h.01" /></symbol>
+<symbol id="i-wifi-off" viewBox="0 0 24 24"><path d="M12 20h.01" /> <path d="M8.5 16.429a5 5 0 0 1 7 0" /> <path d="M5 12.859a10 10 0 0 1 5.17-2.69" /> <path d="M19 12.859a10 10 0 0 0-2.007-1.523" /> <path d="M2 8.82a15 15 0 0 1 4.177-2.643" /> <path d="M22 8.82a15 15 0 0 0-11.288-3.764" /> <path d="m2 2 20 20" /></symbol>
+<symbol id="i-refresh-cw" viewBox="0 0 24 24"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" /> <path d="M21 3v5h-5" /> <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" /> <path d="M8 16H3v5" /></symbol>
+<symbol id="i-chevron-down" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6" /></symbol>
+<symbol id="i-camera" viewBox="0 0 24 24"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z" /> <circle cx="12" cy="13" r="3" /></symbol>
+<symbol id="i-image" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="3" rx="2" ry="2" /> <circle cx="9" cy="9" r="2" /> <path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21" /></symbol>
+<symbol id="i-send" viewBox="0 0 24 24"><path d="M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z" /> <path d="m21.854 2.147-10.94 10.939" /></symbol>
+<symbol id="i-trash-2" viewBox="0 0 24 24"><path d="M3 6h18" /> <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" /> <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" /> <line x1="10" x2="10" y1="11" y2="17" /> <line x1="14" x2="14" y1="11" y2="17" /></symbol>
+<symbol id="i-turtle" viewBox="0 0 24 24"><path d="m12 10 2 4v3a1 1 0 0 0 1 1h2a1 1 0 0 0 1-1v-3a8 8 0 1 0-16 0v3a1 1 0 0 0 1 1h2a1 1 0 0 0 1-1v-3l2-4h4Z" /> <path d="M4.82 7.9 8 10" /> <path d="M15.18 7.9 12 10" /> <path d="M16.93 10H20a2 2 0 0 1 0 4H2" /></symbol>
+<symbol id="i-gauge" viewBox="0 0 24 24"><path d="m12 14 4-4" /> <path d="M3.34 19a10 10 0 1 1 17.32 0" /></symbol>
+<symbol id="i-zap" viewBox="0 0 24 24"><path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z" /></symbol>
+<symbol id="i-rocket" viewBox="0 0 24 24"><path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z" /> <path d="m12 15-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z" /> <path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0" /> <path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5" /></symbol>
+<symbol id="i-circle-alert" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /> <line x1="12" x2="12" y1="8" y2="12" /> <line x1="12" x2="12.01" y1="16" y2="16" /></symbol>
+<symbol id="i-circle-check" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /> <path d="m9 12 2 2 4-4" /></symbol>
+<symbol id="i-history" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" /> <path d="M3 3v5h5" /> <path d="M12 7v5l4 2" /></symbol>
+<symbol id="i-wand-sparkles" viewBox="0 0 24 24"><path d="m21.64 3.64-1.28-1.28a1.21 1.21 0 0 0-1.72 0L2.36 18.64a1.21 1.21 0 0 0 0 1.72l1.28 1.28a1.2 1.2 0 0 0 1.72 0L21.64 5.36a1.2 1.2 0 0 0 0-1.72" /> <path d="m14 7 3 3" /> <path d="M5 6v4" /> <path d="M19 14v4" /> <path d="M10 2v2" /> <path d="M7 8H3" /> <path d="M21 16h-4" /> <path d="M11 3H9" /></symbol>
+<symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8" /> <path d="m21 21-4.3-4.3" /></symbol>
+<symbol id="i-plug" viewBox="0 0 24 24"><path d="M12 22v-5" /> <path d="M9 8V2" /> <path d="M15 8V2" /> <path d="M18 8v5a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V8Z" /></symbol>
+<symbol id="i-octagon-x" viewBox="0 0 24 24"><path d="m15 9-6 6" /> <path d="M2.586 16.726A2 2 0 0 1 2 15.312V8.688a2 2 0 0 1 .586-1.414l4.688-4.688A2 2 0 0 1 8.688 2h6.624a2 2 0 0 1 1.414.586l4.688 4.688A2 2 0 0 1 22 8.688v6.624a2 2 0 0 1-.586 1.414l-4.688 4.688a2 2 0 0 1-1.414.586H8.688a2 2 0 0 1-1.414-.586z" /> <path d="m9 9 6 6" /></symbol>
+<symbol id="i-flame" viewBox="0 0 24 24"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z" /></symbol>
+<symbol id="i-list-filter" viewBox="0 0 24 24"><path d="M3 6h18" /> <path d="M7 12h10" /> <path d="M10 18h4" /></symbol>
+<symbol id="i-user-round" viewBox="0 0 24 24"><circle cx="12" cy="8" r="5" /> <path d="M20 21a8 8 0 0 0-16 0" /></symbol>
+<symbol id="i-key-round" viewBox="0 0 24 24"><path d="M2.586 17.414A2 2 0 0 0 2 18.828V21a1 1 0 0 0 1 1h3a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h1a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h.172a2 2 0 0 0 1.414-.586l.814-.814a6.5 6.5 0 1 0-4-4z" /> <circle cx="16.5" cy="7.5" r=".5" fill="currentColor" /></symbol>
+<symbol id="i-image-off" viewBox="0 0 24 24"><line x1="2" x2="22" y1="2" y2="22" /> <path d="M10.41 10.41a2 2 0 1 1-2.83-2.83" /> <line x1="13.5" x2="6" y1="13.5" y2="21" /> <line x1="18" x2="21" y1="12" y2="15" /> <path d="M3.59 3.59A1.99 1.99 0 0 0 3 5v14a2 2 0 0 0 2 2h14c.55 0 1.052-.22 1.41-.59" /> <path d="M21 15V5a2 2 0 0 0-2-2H9" /></symbol>
+</svg>
+
+<div class="app">
+  <!-- Sidebar (desktop) / top bar + bottom tabs (phone) -->
+  <aside class="side">
+    <a class="brand" href="#printers" aria-label="PrintPilot">
+      <span class="brand-mark" aria-hidden="true"><svg class="i"><use href="#i-printer"/></svg></span>
+      <span class="brand-name">PrintPilot</span>
+    </a>
+
+    <nav class="nav" aria-label="Mục chính">
+      <a class="nav-item" href="#printers" data-tab="printers">
+        <svg class="i"><use href="#i-printer"/></svg><span class="nav-label">Máy in</span>
       </a>
+      <a class="nav-item" href="#alerts" data-tab="alerts">
+        <svg class="i"><use href="#i-bell"/></svg><span class="nav-label">Cảnh báo</span>
+        <span id="alerts-count" class="nav-badge num" hidden></span>
+      </a>
+      <a class="nav-item" href="#ai" data-tab="ai">
+        <svg class="i"><use href="#i-wand-sparkles"/></svg><span class="nav-label">Tối ưu AI</span>
+      </a>
+      <a class="nav-item" href="#log" data-tab="log">
+        <svg class="i"><use href="#i-history"/></svg><span class="nav-label">Nhật ký</span>
+      </a>
+    </nav>
 
-      <ul class="health" aria-label="Trạng thái hệ thống">
-        <li id="health-ai" class="health-item" data-state="unknown"><span class="dot" aria-hidden="true"></span>AI</li>
-        <li id="health-bridge" class="health-item" data-state="unknown"><span class="dot" aria-hidden="true"></span>Cầu nối</li>
-        <li id="health-notify" class="health-item" data-state="unknown"><span class="dot" aria-hidden="true"></span>Telegram</li>
-      </ul>
+    <div class="side-spacer"></div>
 
-      <div class="topbar-right">
-        <span id="sync-status" class="sync" aria-live="polite">Đang tải…</span>
-        <div class="theme-switch">
-          <button id="btn-theme" class="btn btn-ghost btn-icon" type="button" aria-haspopup="menu" aria-expanded="false" aria-label="Giao diện" title="Giao diện">
-            <svg data-icon="auto" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 0 0 18z" fill="currentColor"/></svg>
-            <svg data-icon="light" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" hidden><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
-            <svg data-icon="dark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" hidden><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
-          </button>
-          <div id="theme-menu" class="theme-menu" role="menu" hidden>
-            <button type="button" role="menuitemradio" data-theme-choice="auto">Tự động (theo máy)</button>
-            <button type="button" role="menuitemradio" data-theme-choice="light">Sáng</button>
-            <button type="button" role="menuitemradio" data-theme-choice="dark">Tối</button>
-          </div>
-        </div>
-        <button id="btn-settings" class="btn btn-ghost btn-icon" type="button" aria-label="Cài đặt" title="Cài đặt" hidden>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+    <ul class="health" aria-label="Trạng thái hệ thống">
+      <li id="health-ai" class="health-item" data-state="unknown" tabindex="0"><span class="dot" aria-hidden="true"></span><span class="health-label">AI</span></li>
+      <li id="health-bridge" class="health-item" data-state="unknown" tabindex="0"><span class="dot" aria-hidden="true"></span><span class="health-label">Cầu nối</span></li>
+      <li id="health-notify" class="health-item" data-state="unknown" tabindex="0"><span class="dot" aria-hidden="true"></span><span class="health-label">Telegram</span></li>
+    </ul>
+
+    <div class="side-actions">
+      <div class="theme-switch">
+        <button id="btn-theme" class="icon-btn" type="button" aria-haspopup="menu" aria-expanded="false" aria-label="Giao diện" data-tip="Giao diện">
+          <svg class="i" data-icon="auto"><use href="#i-sun-moon"/></svg>
+          <svg class="i" data-icon="light" hidden><use href="#i-sun"/></svg>
+          <svg class="i" data-icon="dark" hidden><use href="#i-moon"/></svg>
         </button>
+        <div id="theme-menu" class="menu" role="menu" hidden>
+          <button type="button" role="menuitemradio" data-theme-choice="auto"><svg class="i"><use href="#i-sun-moon"/></svg>Theo hệ thống</button>
+          <button type="button" role="menuitemradio" data-theme-choice="light"><svg class="i"><use href="#i-sun"/></svg>Sáng</button>
+          <button type="button" role="menuitemradio" data-theme-choice="dark"><svg class="i"><use href="#i-moon"/></svg>Tối</button>
+        </div>
+      </div>
+      <button id="btn-settings" class="icon-btn" type="button" aria-label="Cài đặt" data-tip="Cài đặt" hidden>
+        <svg class="i"><use href="#i-settings"/></svg>
+      </button>
+      <div class="user">
         <span id="user-chip" class="user-chip" hidden></span>
-        <button id="btn-logout" class="btn btn-ghost btn-sm" type="button" hidden>Đăng xuất</button>
+        <button id="btn-logout" class="icon-btn" type="button" aria-label="Đăng xuất" data-tip="Đăng xuất" hidden>
+          <svg class="i"><use href="#i-log-out"/></svg>
+        </button>
       </div>
     </div>
-  </header>
+  </aside>
 
-  <div id="banner" class="banner" role="alert" hidden></div>
+  <main class="main">
+    <div id="banner" class="banner" role="alert" hidden></div>
 
-  <main class="page">
-    <section aria-labelledby="h-printers">
-      <div class="section-head">
-        <h1 id="h-printers" class="section-title">Máy in</h1>
-        <span id="printers-meta" class="section-meta"></span>
-      </div>
+    <!-- Printers -->
+    <section class="view" data-view="printers" aria-labelledby="h-printers">
+      <header class="view-head">
+        <div>
+          <h1 id="h-printers" class="view-title">Máy in</h1>
+          <p id="printers-meta" class="view-sub"></p>
+        </div>
+        <span id="sync-status" class="sync num" aria-live="polite">Đang tải…</span>
+      </header>
       <div id="printers" class="printer-grid"></div>
-      <p id="printers-empty" class="empty" hidden>Chưa có máy in nào gửi dữ liệu. Thêm máy in vào cấu hình cầu nối trên Redmi.</p>
+      <div id="printers-empty" class="empty" hidden>
+        <svg class="i empty-icon"><use href="#i-printer"/></svg>
+        <p class="empty-title">Chưa có máy in</p>
+        <p class="empty-text">Thêm máy in vào cấu hình cầu nối trên Redmi, dữ liệu sẽ hiện ở đây.</p>
+      </div>
     </section>
 
-    <div class="columns">
-      <section class="panel" aria-labelledby="h-alerts">
-        <div class="panel-head">
-          <h2 id="h-alerts" class="panel-title">Cảnh báo <span id="alerts-count" class="count" hidden></span></h2>
-          <div class="segmented" role="group" aria-label="Lọc cảnh báo">
-            <button type="button" class="seg" data-filter="open" aria-pressed="true">Chưa xử lý</button>
-            <button type="button" class="seg" data-filter="all" aria-pressed="false">Tất cả</button>
-          </div>
+    <!-- Alerts -->
+    <section class="view" data-view="alerts" aria-labelledby="h-alerts" hidden>
+      <header class="view-head">
+        <div>
+          <h1 id="h-alerts" class="view-title">Cảnh báo</h1>
+          <p class="view-sub">Từ AI đánh giá camera và lỗi máy in</p>
         </div>
-        <div id="alert-printers" class="chips" role="group" aria-label="Lọc cảnh báo theo máy in"></div>
-        <ul id="alerts" class="list"></ul>
-        <p id="alerts-empty" class="empty" hidden>Không có cảnh báo cần xử lý.</p>
-      </section>
-
-      <section class="panel" aria-labelledby="h-analyses">
-        <div class="panel-head">
-          <h2 id="h-analyses" class="panel-title">Tối ưu thông số (AI)</h2>
+        <div class="segmented" role="group" aria-label="Lọc cảnh báo">
+          <button type="button" class="seg" data-filter="open" aria-pressed="true">Chưa xử lý</button>
+          <button type="button" class="seg" data-filter="all" aria-pressed="false">Tất cả</button>
         </div>
-        <ul id="analyses" class="list"></ul>
-        <p id="analyses-empty" class="empty" hidden>Chưa có lượt phân tích. Bấm <b>AI auto setting</b> hoặc gửi in từ Bambu Studio (bản PrintPilot) để AI đề xuất thông số.</p>
-      </section>
-    </div>
+      </header>
+      <div id="alert-printers" class="chips" role="group" aria-label="Lọc cảnh báo theo máy in"></div>
+      <ul id="alerts" class="alert-list"></ul>
+      <div id="alerts-empty" class="empty" hidden>
+        <svg class="i empty-icon"><use href="#i-circle-check"/></svg>
+        <p class="empty-title">Không có cảnh báo</p>
+        <p class="empty-text"></p>
+      </div>
+    </section>
 
-    <section class="panel" aria-labelledby="h-events">
-      <div class="panel-head panel-head-wrap">
-        <h2 id="h-events" class="panel-title">Nhật ký hoạt động</h2>
-        <div class="filters">
-          <label class="sr-only" for="ev-printer">Máy in</label>
-          <select id="ev-printer" class="select-sm">
+    <!-- AI parameter optimisation -->
+    <section class="view" data-view="ai" aria-labelledby="h-ai" hidden>
+      <header class="view-head">
+        <div>
+          <h1 id="h-ai" class="view-title">Tối ưu thông số</h1>
+          <p class="view-sub">Đề xuất của AI cho từng model trước khi in</p>
+        </div>
+      </header>
+      <ul id="analyses" class="analysis-list"></ul>
+      <div id="analyses-empty" class="empty" hidden>
+        <svg class="i empty-icon"><use href="#i-wand-sparkles"/></svg>
+        <p class="empty-title">Chưa có lượt phân tích</p>
+        <p class="empty-text">Bấm <b>AI auto setting</b> hoặc gửi in từ Bambu Studio (bản PrintPilot), đề xuất sẽ hiện ở đây.</p>
+      </div>
+    </section>
+
+    <!-- Activity log -->
+    <section class="view" data-view="log" aria-labelledby="h-events" hidden>
+      <header class="view-head">
+        <div>
+          <h1 id="h-events" class="view-title">Nhật ký</h1>
+          <p class="view-sub">Mọi hoạt động của máy in, cảnh báo và hệ thống trong 30 ngày</p>
+        </div>
+      </header>
+      <div class="toolbar">
+        <label class="select">
+          <span class="sr-only">Máy in</span>
+          <svg class="i"><use href="#i-printer"/></svg>
+          <select id="ev-printer">
             <option value="">Tất cả máy in</option>
             <option value="_system">Hệ thống</option>
           </select>
-          <label class="sr-only" for="ev-category">Loại</label>
-          <select id="ev-category" class="select-sm">
+        </label>
+        <label class="select">
+          <span class="sr-only">Loại</span>
+          <svg class="i"><use href="#i-list-filter"/></svg>
+          <select id="ev-category">
             <option value="">Mọi loại</option>
             <option value="printer">Máy in</option>
             <option value="alert">Cảnh báo</option>
@@ -103,171 +206,195 @@
             <option value="device">Thiết bị</option>
             <option value="system">Hệ thống</option>
           </select>
-          <label class="switch switch-sm"><input id="ev-problems" type="checkbox"><span>Chỉ sự cố</span></label>
-        </div>
+        </label>
+        <label class="toggle"><input id="ev-problems" type="checkbox"><span class="toggle-track" aria-hidden="true"></span><span>Chỉ sự cố</span></label>
       </div>
-      <ol id="events" class="events"></ol>
-      <p id="events-empty" class="empty" hidden>Chưa có hoạt động nào.</p>
-      <div class="events-more"><button id="events-more" class="btn btn-sm" type="button" hidden>Xem thêm</button></div>
+      <ol id="events" class="timeline"></ol>
+      <div id="events-empty" class="empty" hidden>
+        <svg class="i empty-icon"><use href="#i-history"/></svg>
+        <p class="empty-title">Chưa có hoạt động</p>
+        <p class="empty-text">Thử bỏ bớt bộ lọc.</p>
+      </div>
+      <div class="more"><button id="events-more" class="btn" type="button" hidden><svg class="i"><use href="#i-chevron-down"/></svg>Xem thêm</button></div>
     </section>
   </main>
+</div>
 
-  <!-- Printer detail -->
-  <dialog id="detail" class="dialog dialog-wide" aria-labelledby="detail-title">
-    <div class="dialog-head">
+<!-- Printer detail -->
+<dialog id="detail" class="dialog dialog-detail" aria-labelledby="detail-title">
+  <div class="detail-head">
+    <div class="detail-heading">
+      <span id="detail-status" class="status-pill"></span>
       <div>
         <h2 id="detail-title" class="dialog-title"></h2>
         <p id="detail-sub" class="dialog-sub"></p>
       </div>
-      <button type="button" class="btn btn-ghost btn-icon" data-close aria-label="Đóng">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
-      </button>
     </div>
-    <div class="detail-body">
+    <button type="button" class="icon-btn" data-close aria-label="Đóng" data-tip="Đóng">
+      <svg class="i"><use href="#i-x"/></svg>
+    </button>
+  </div>
+  <div class="detail-body">
+    <div class="detail-left">
       <figure class="detail-media">
         <img id="detail-img" alt="">
-        <figcaption id="detail-caption"></figcaption>
-        <span id="live-state" class="live-state" role="status" hidden></span>
-        <button id="btn-live" type="button" class="btn btn-sm live-toggle" aria-pressed="false">Xem trực tiếp</button>
+        <figcaption id="detail-caption" class="glass num"></figcaption>
+        <span id="live-state" class="live-state glass num" role="status" hidden></span>
+        <button id="btn-live" type="button" class="live-toggle" aria-pressed="false" aria-label="Xem trực tiếp">
+          <svg class="i" data-live="off"><use href="#i-video"/></svg>
+          <svg class="i" data-live="on" hidden><use href="#i-square"/></svg>
+          <span class="live-toggle-label">Trực tiếp</span>
+        </button>
       </figure>
-      <aside class="detail-side">
-        <section class="controls" aria-labelledby="h-controls">
-          <h3 id="h-controls" class="mini-title">Điều khiển</h3>
-          <div class="ctl-row">
-            <button type="button" class="btn btn-sm" data-cmd="pause">Tạm dừng</button>
-            <button type="button" class="btn btn-sm" data-cmd="resume">Tiếp tục</button>
-            <button type="button" class="btn btn-sm btn-danger" data-cmd="stop">Dừng in</button>
-          </div>
-          <div class="ctl-row">
-            <button type="button" class="btn btn-sm" data-cmd="light" id="ctl-light">Bật đèn</button>
-          </div>
-          <div class="segmented segmented-full" role="group" aria-label="Tốc độ in">
-            <button type="button" class="seg" data-cmd="speed" data-level="1">Êm</button>
-            <button type="button" class="seg" data-cmd="speed" data-level="2">Chuẩn</button>
-            <button type="button" class="seg" data-cmd="speed" data-level="3">Thể thao</button>
-            <button type="button" class="seg" data-cmd="speed" data-level="4">Siêu tốc</button>
-          </div>
-          <p id="ctl-status" class="action-result" role="status"></p>
-        </section>
-        <div id="detail-vision" class="vision"></div>
-        <dl id="detail-metrics" class="kv"></dl>
-      </aside>
-    </div>
-    <div class="detail-history">
-      <h3 class="mini-title">Lịch sử ảnh</h3>
       <div id="detail-thumbs" class="thumbs" role="listbox" aria-label="Ảnh trước đó"></div>
     </div>
-    <div class="detail-lower">
-      <div>
-        <h3 class="mini-title">Cảnh báo của máy này</h3>
-        <ul id="detail-alerts" class="list"></ul>
-        <p id="detail-alerts-empty" class="empty empty-sm" hidden>Không có cảnh báo cần xử lý.</p>
-      </div>
-      <div>
-        <h3 class="mini-title">Hoạt động gần đây</h3>
-        <ol id="detail-events" class="events events-compact"></ol>
-        <p id="detail-events-empty" class="empty empty-sm" hidden>Chưa có hoạt động.</p>
-      </div>
-    </div>
-  </dialog>
 
-  <!-- Settings -->
-  <dialog id="settings" class="dialog dialog-settings" aria-labelledby="settings-title">
-    <form id="settings-form" class="settings-form" novalidate>
-      <div class="dialog-head">
-        <div>
-          <h2 id="settings-title" class="dialog-title">Cài đặt</h2>
-          <p class="dialog-sub">Thay đổi có hiệu lực ngay, không cần khởi động lại.</p>
+    <aside class="detail-side">
+      <section class="ctl" aria-labelledby="h-controls">
+        <h3 id="h-controls" class="eyebrow">Điều khiển</h3>
+        <div class="ctl-buttons">
+          <button type="button" class="ctl-btn" data-cmd="pause" aria-label="Tạm dừng" data-tip="Tạm dừng"><svg class="i"><use href="#i-pause"/></svg></button>
+          <button type="button" class="ctl-btn" data-cmd="resume" aria-label="Tiếp tục" data-tip="Tiếp tục"><svg class="i"><use href="#i-play"/></svg></button>
+          <button type="button" class="ctl-btn ctl-danger" data-cmd="stop" aria-label="Dừng in" data-tip="Dừng in"><svg class="i"><use href="#i-octagon-x"/></svg></button>
+          <span class="ctl-sep" aria-hidden="true"></span>
+          <button type="button" class="ctl-btn" data-cmd="light" id="ctl-light" aria-label="Bật đèn" data-tip="Bật đèn">
+            <svg class="i" data-light="on"><use href="#i-lightbulb"/></svg>
+            <svg class="i" data-light="off" hidden><use href="#i-lightbulb-off"/></svg>
+          </button>
         </div>
-        <button type="button" class="btn btn-ghost btn-icon" data-close aria-label="Đóng">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
-        </button>
+        <div class="speed">
+          <span class="speed-label">Tốc độ <b id="speed-current">--</b></span>
+          <div class="segmented segmented-icons" role="group" aria-label="Tốc độ in">
+            <button type="button" class="seg" data-cmd="speed" data-level="1" aria-label="Êm" data-tip="Êm"><svg class="i"><use href="#i-turtle"/></svg></button>
+            <button type="button" class="seg" data-cmd="speed" data-level="2" aria-label="Chuẩn" data-tip="Chuẩn"><svg class="i"><use href="#i-gauge"/></svg></button>
+            <button type="button" class="seg" data-cmd="speed" data-level="3" aria-label="Thể thao" data-tip="Thể thao"><svg class="i"><use href="#i-zap"/></svg></button>
+            <button type="button" class="seg" data-cmd="speed" data-level="4" aria-label="Siêu tốc" data-tip="Siêu tốc"><svg class="i"><use href="#i-rocket"/></svg></button>
+          </div>
+        </div>
+        <p id="ctl-status" class="ctl-status" role="status"></p>
+      </section>
+
+      <div id="detail-vision" class="note"></div>
+
+      <section>
+        <h3 class="eyebrow">Thông số</h3>
+        <dl id="detail-metrics" class="kv"></dl>
+      </section>
+    </aside>
+  </div>
+
+  <div class="detail-lower">
+    <section>
+      <h3 class="eyebrow">Cảnh báo của máy này</h3>
+      <ul id="detail-alerts" class="alert-list alert-list-compact"></ul>
+      <p id="detail-alerts-empty" class="muted" hidden>Không có cảnh báo cần xử lý.</p>
+    </section>
+    <section>
+      <h3 class="eyebrow">Hoạt động gần đây</h3>
+      <ol id="detail-events" class="timeline timeline-compact"></ol>
+      <p id="detail-events-empty" class="muted" hidden>Chưa có hoạt động.</p>
+    </section>
+  </div>
+</dialog>
+
+<!-- Settings -->
+<dialog id="settings" class="dialog dialog-settings" aria-labelledby="settings-title">
+  <form id="settings-form" class="settings-form" novalidate>
+    <div class="detail-head">
+      <div>
+        <h2 id="settings-title" class="dialog-title">Cài đặt</h2>
+        <p class="dialog-sub">Có hiệu lực ngay, không cần khởi động lại.</p>
       </div>
+      <button type="button" class="icon-btn" data-close aria-label="Đóng" data-tip="Đóng">
+        <svg class="i"><use href="#i-x"/></svg>
+      </button>
+    </div>
 
-      <div class="settings-body">
-        <fieldset class="group">
-          <legend>AI</legend>
-          <label class="field"><span>Địa chỉ API (OpenAI-compatible)</span>
-            <input name="ai_base_url" type="url" placeholder="http://127.0.0.1:20128/v1" autocomplete="off"></label>
-          <label class="field"><span>Khóa API</span>
-            <input name="ai_key" type="password" autocomplete="new-password" data-secret></label>
-          <div class="field-row">
-            <label class="field"><span>Model phân tích thông số</span>
-              <input name="ai_model" type="text" autocomplete="off"></label>
-            <label class="field"><span>Model đánh giá ảnh</span>
-              <input name="vision_model" type="text" placeholder="Để trống = dùng model phân tích" autocomplete="off"></label>
-          </div>
-          <label class="switch"><input name="vision_enabled" type="checkbox"><span>AI đánh giá ảnh camera</span></label>
-          <div class="actions-row">
-            <button type="button" class="btn btn-sm" data-action="test-ai">Kiểm tra kết nối</button>
-            <span class="action-result" data-result="test-ai" role="status"></span>
-          </div>
-        </fieldset>
+    <div class="settings-body">
+      <fieldset class="group">
+        <legend><svg class="i"><use href="#i-sparkles"/></svg>AI</legend>
+        <label class="field"><span>Địa chỉ API (OpenAI-compatible)</span>
+          <input name="ai_base_url" type="url" placeholder="http://127.0.0.1:20128/v1" autocomplete="off"></label>
+        <label class="field"><span>Khóa API</span>
+          <input name="ai_key" type="password" autocomplete="new-password" data-secret></label>
+        <div class="field-row">
+          <label class="field"><span>Model phân tích thông số</span>
+            <input name="ai_model" type="text" autocomplete="off"></label>
+          <label class="field"><span>Model đánh giá ảnh</span>
+            <input name="vision_model" type="text" placeholder="Trống = dùng model phân tích" autocomplete="off"></label>
+        </div>
+        <label class="toggle"><input name="vision_enabled" type="checkbox"><span class="toggle-track" aria-hidden="true"></span><span>AI đánh giá ảnh camera</span></label>
+        <div class="actions-row">
+          <button type="button" class="btn" data-action="test-ai"><svg class="i"><use href="#i-plug"/></svg>Kiểm tra kết nối</button>
+          <span class="action-result" data-result="test-ai" role="status"></span>
+        </div>
+      </fieldset>
 
-        <fieldset class="group">
-          <legend>Telegram</legend>
-          <p class="hint">Tạo bot với <b>@BotFather</b> (lệnh <code>/newbot</code>), dán token vào đây, nhắn một tin bất kỳ cho bot rồi bấm <b>Tìm chat</b>.</p>
-          <label class="field"><span>Bot token</span>
-            <input name="telegram_bot_token" type="password" autocomplete="new-password" data-secret></label>
-          <div class="field-row field-row-action">
-            <label class="field"><span>Chat ID</span>
-              <input name="telegram_chat_id" type="text" inputmode="numeric" autocomplete="off"></label>
-            <button type="button" class="btn btn-sm" data-action="find-chats">Tìm chat</button>
-          </div>
-          <ul id="chat-choices" class="chat-choices" hidden></ul>
-          <div class="actions-row">
-            <button type="button" class="btn btn-sm" data-action="test-telegram">Gửi tin thử</button>
-            <span class="action-result" data-result="telegram" role="status"></span>
-          </div>
-        </fieldset>
+      <fieldset class="group">
+        <legend><svg class="i"><use href="#i-send"/></svg>Telegram</legend>
+        <p class="hint">Tạo bot với <b>@BotFather</b> (lệnh <code>/newbot</code>), dán token vào đây, nhắn một tin bất kỳ cho bot rồi bấm <b>Tìm chat</b>.</p>
+        <label class="field"><span>Bot token</span>
+          <input name="telegram_bot_token" type="password" autocomplete="new-password" data-secret></label>
+        <div class="field-row field-row-action">
+          <label class="field"><span>Chat ID</span>
+            <input name="telegram_chat_id" type="text" inputmode="numeric" autocomplete="off"></label>
+          <button type="button" class="btn" data-action="find-chats"><svg class="i"><use href="#i-search"/></svg>Tìm chat</button>
+        </div>
+        <ul id="chat-choices" class="chat-choices" hidden></ul>
+        <div class="actions-row">
+          <button type="button" class="btn" data-action="test-telegram"><svg class="i"><use href="#i-send"/></svg>Gửi tin thử</button>
+          <span class="action-result" data-result="telegram" role="status"></span>
+        </div>
+      </fieldset>
 
-        <fieldset class="group">
-          <legend>Camera &amp; lưu trữ</legend>
-          <label class="switch"><input name="capture_when_idle" type="checkbox"><span>Chụp ảnh cả khi máy in không hoạt động</span></label>
-          <p class="hint">Tắt: cầu nối chỉ gửi ảnh khi máy đang in, tạm dừng hoặc lỗi, cùng một ảnh lúc in xong.</p>
-          <div class="field-row">
-            <label class="field"><span>Tần suất chụp khi đang in</span>
-              <select name="snapshot_interval_seconds">
-                <option value="60">1 phút</option><option value="120">2 phút</option>
-                <option value="300">5 phút</option><option value="600">10 phút</option>
-              </select></label>
-            <label class="field"><span>Tự xóa ảnh sau</span>
-              <select name="snapshot_retention_hours">
-                <option value="6">6 giờ</option><option value="12">12 giờ</option><option value="24">1 ngày</option>
-                <option value="48">2 ngày</option><option value="72">3 ngày</option><option value="168">7 ngày</option>
-              </select></label>
-          </div>
-          <p class="hint">Ảnh gắn với cảnh báo được giữ 14 ngày để đối chiếu.</p>
-          <div class="actions-row">
-            <span id="storage-info" class="storage-info"></span>
-            <button type="button" class="btn btn-sm" data-action="cleanup">Dọn ngay</button>
-            <span class="action-result" data-result="cleanup" role="status"></span>
-          </div>
-        </fieldset>
-      </div>
+      <fieldset class="group">
+        <legend><svg class="i"><use href="#i-camera"/></svg>Camera &amp; lưu trữ</legend>
+        <label class="toggle"><input name="capture_when_idle" type="checkbox"><span class="toggle-track" aria-hidden="true"></span><span>Chụp ảnh cả khi máy in không hoạt động</span></label>
+        <p class="hint">Tắt: cầu nối chỉ gửi ảnh khi máy đang in, tạm dừng hoặc lỗi, cùng một ảnh lúc in xong.</p>
+        <div class="field-row">
+          <label class="field"><span>Tần suất chụp khi đang in</span>
+            <select name="snapshot_interval_seconds">
+              <option value="60">1 phút</option><option value="120">2 phút</option>
+              <option value="300">5 phút</option><option value="600">10 phút</option>
+            </select></label>
+          <label class="field"><span>Tự xóa ảnh sau</span>
+            <select name="snapshot_retention_hours">
+              <option value="6">6 giờ</option><option value="12">12 giờ</option><option value="24">1 ngày</option>
+              <option value="48">2 ngày</option><option value="72">3 ngày</option><option value="168">7 ngày</option>
+            </select></label>
+        </div>
+        <p class="hint">Ảnh gắn với cảnh báo được giữ 14 ngày để đối chiếu.</p>
+        <div class="actions-row">
+          <span id="storage-info" class="storage-info num"></span>
+          <button type="button" class="btn" data-action="cleanup"><svg class="i"><use href="#i-trash-2"/></svg>Dọn ngay</button>
+          <span class="action-result" data-result="cleanup" role="status"></span>
+        </div>
+      </fieldset>
+    </div>
 
-      <div class="dialog-foot">
-        <span id="settings-status" class="action-result" role="status"></span>
-        <button type="button" class="btn" data-close>Đóng</button>
-        <button type="submit" class="btn btn-primary" id="settings-save">Lưu</button>
-      </div>
-    </form>
-  </dialog>
+    <div class="dialog-foot">
+      <span id="settings-status" class="action-result" role="status"></span>
+      <button type="button" class="btn btn-quiet" data-close>Đóng</button>
+      <button type="submit" class="btn btn-primary" id="settings-save"><svg class="i"><use href="#i-check"/></svg>Lưu</button>
+    </div>
+  </form>
+</dialog>
 
-  <!-- Token login (only when Tailscale identity is unavailable) -->
-  <dialog id="login" class="dialog" aria-labelledby="login-title">
-    <form id="login-form" method="dialog" class="login-form">
-      <h2 id="login-title" class="dialog-title">Đăng nhập</h2>
-      <p class="dialog-sub">Mở trang qua Tailscale bằng tài khoản được cấp quyền để vào thẳng, hoặc nhập mã quản lý.</p>
-      <label class="field">
-        <span>Mã quản lý</span>
-        <input id="login-token" type="password" autocomplete="current-password" required>
-      </label>
-      <p id="login-error" class="field-error" role="alert" hidden></p>
-      <button id="login-submit" class="btn btn-primary" type="submit">Đăng nhập</button>
-    </form>
-  </dialog>
+<!-- Token login (only when Tailscale identity is unavailable) -->
+<dialog id="login" class="dialog dialog-login" aria-labelledby="login-title">
+  <form id="login-form" method="dialog" class="login-form">
+    <span class="brand-mark brand-mark-lg" aria-hidden="true"><svg class="i"><use href="#i-printer"/></svg></span>
+    <h2 id="login-title" class="dialog-title">Đăng nhập PrintPilot</h2>
+    <p class="dialog-sub">Mở trang qua Tailscale bằng tài khoản được cấp quyền để vào thẳng, hoặc nhập mã quản lý.</p>
+    <label class="field">
+      <span>Mã quản lý</span>
+      <input id="login-token" type="password" autocomplete="current-password" required>
+    </label>
+    <p id="login-error" class="field-error" role="alert" hidden></p>
+    <button id="login-submit" class="btn btn-primary btn-block" type="submit"><svg class="i"><use href="#i-key-round"/></svg>Đăng nhập</button>
+  </form>
+</dialog>
 
-  <script src="app.js"></script>
+<script src="app.js"></script>
 </body>
 </html>

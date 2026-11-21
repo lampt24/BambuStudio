@@ -17,6 +17,18 @@
     return node;
   };
 
+  const SVG_NS = 'http://www.w3.org/2000/svg';
+  // Icons come from the inline sprite in index.html (Lucide, ISC)
+  const icon = (name, cls = '') => {
+    const svg = document.createElementNS(SVG_NS, 'svg');
+    svg.setAttribute('class', `i ${cls}`.trim());
+    svg.setAttribute('aria-hidden', 'true');
+    const use = document.createElementNS(SVG_NS, 'use');
+    use.setAttribute('href', `#i-${name}`);
+    svg.appendChild(use);
+    return svg;
+  };
+
   const store = {
     get(key) { try { return sessionStorage.getItem(key) || ''; } catch { return ''; } },
     set(key, value) { try { sessionStorage.setItem(key, value); } catch { /* private mode */ } },
@@ -158,27 +170,23 @@
     return { state: 'none', text: 'Chưa được AI đánh giá.' };
   }
 
-  const ICON = {
-    ok: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>',
-    warn: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg>',
-    none: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v4M12 16h.01"/></svg>',
-  };
+  const NOTE_ICON = { ok: 'sparkles', warn: 'triangle-alert', none: 'info', rest: 'camera' };
   function visionBox(v) {
-    const box = el('div', 'vision');
+    const box = el('div', 'note');
     box.dataset.state = v.state;
-    const icon = el('span', 'vision-icon');
-    icon.innerHTML = ICON[v.state] || ICON.none; // static markup only
-    box.appendChild(icon);
-    box.appendChild(el('span', 'vision-text', v.text));
+    box.appendChild(icon(NOTE_ICON[v.icon || v.state] || 'info'));
+    box.appendChild(el('span', '', v.text));
     return box;
   }
 
-  function metric(label, value, target) {
-    const m = el('div', 'metric');
-    m.appendChild(el('span', 'metric-label', label));
-    const v = el('span', 'metric-value num', value);
-    if (target) v.appendChild(el('span', 'metric-target', ` /${target}`));
-    m.appendChild(v);
+  function stat(iconName, label, value, target) {
+    const m = el('div', 'stat');
+    const l = el('span', 'stat-label');
+    l.title = label;
+    l.append(icon(iconName), el('span', '', label));
+    const v = el('span', 'stat-value num', value);
+    if (target) v.appendChild(el('span', 'stat-target', ` / ${target}`));
+    m.append(l, v);
     return m;
   }
 
@@ -187,11 +195,12 @@
   // ---------------------------------------------------------------------------
   function renderHealth() {
     const cfg = state.data.config || {};
-    const set = (id, s, title) => { const n = $(id); n.dataset.state = s; n.title = title; };
+    const LABEL = { ok: 'Hoạt động', warn: 'Chập chờn', error: 'Chưa cấu hình', off: 'Tắt' };
+    const set = (id, s, title) => { const n = $(id); n.dataset.state = s; n.dataset.label = LABEL[s] || ''; n.title = title; };
     set('health-ai', cfg.ai_configured ? 'ok' : 'error', cfg.ai_configured ? 'AI sẵn sàng' : 'Chưa cấu hình AI');
     const devices = state.data.devices || [];
     const live = devices.filter((d) => !d.stale);
-    set('health-bridge', !devices.length ? 'off' : live.length === devices.length ? 'ok' : 'warn',
+    set('health-bridge', !devices.length ? 'off' : live.length === devices.length ? 'ok' : live.length ? 'warn' : 'error',
       devices.length ? devices.map((d) => `${d.device_id}: ${d.stale ? 'mất tín hiệu' : 'hoạt động'} (${relTime(d.last_seen)})`).join('\n') : 'Chưa có cầu nối');
     set('health-notify', cfg.notifications_configured ? 'ok' : 'off',
       cfg.notifications_configured ? 'Đang gửi cảnh báo' : 'Chưa bật gửi cảnh báo ra ngoài');
@@ -203,7 +212,7 @@
     $('printers-empty').hidden = printers.length > 0;
     const active = printers.filter((p) => printerStatus(p) === 'printing').length;
     $('printers-meta').textContent = printers.length
-      ? `${printers.length} máy · ${active ? `${active} đang in` : 'không có máy nào đang in'}`
+      ? `${printers.length} máy · ${active ? `${active} đang in` : 'không máy nào đang in'}`
       : '';
 
     const seen = new Set();
@@ -228,42 +237,41 @@
     const open = el('button', 'printer-open');
     open.type = 'button';
     open.addEventListener('click', () => openDetail(printerId));
-    const liveBtn = el('button', 'live-btn');
-    liveBtn.type = 'button';
-    liveBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>';
-    liveBtn.appendChild(el('span', '', 'Trực tiếp'));
-    liveBtn.addEventListener('click', (e) => { e.stopPropagation(); openDetail(printerId, true); });
 
     const media = el('div', 'printer-media');
     const img = el('img');
     img.alt = '';
-    const empty = el('div', 'media-empty', 'Chưa có ảnh');
-    const tagL = el('span', 'media-tag media-tag-left');
-    tagL.appendChild(el('span', 'dot'));
-    tagL.appendChild(el('span', 'status-text'));
-    const tagR = el('span', 'media-tag media-tag-right num');
-    media.append(img, empty, tagL, tagR);
+    const empty = el('div', 'media-empty');
+    empty.append(icon('image-off'), el('span', 'media-empty-text', 'Chưa có ảnh'));
+    const status = el('span', 'glass media-status');
+    status.append(el('span', 'status-dot'), el('span', 'status-text'));
+    const age = el('span', 'glass media-age num');
+    const actions = el('div', 'media-actions');
+    const liveBtn = el('button', 'live-btn');
+    liveBtn.type = 'button';
+    liveBtn.append(icon('video'), el('span', '', 'Trực tiếp'));
+    liveBtn.addEventListener('click', (e) => { e.stopPropagation(); openDetail(printerId, true); });
+    actions.appendChild(liveBtn);
+    const line = el('div', 'progress-line');
+    line.appendChild(el('span'));
+    line.setAttribute('role', 'progressbar');
+    line.setAttribute('aria-valuemin', '0');
+    line.setAttribute('aria-valuemax', '100');
+    media.append(img, empty, el('div', 'media-shade'), status, age, actions, line);
 
     const body = el('div', 'printer-body');
     const head = el('div', 'printer-head');
-    const titles = el('span', 'printer-titles');
-    const count = el('span', 'alert-count');
+    const titles = el('div', 'printer-titles');
+    const nameRow = el('div', 'printer-name-row');
+    const count = el('span', 'alert-count num');
     count.hidden = true;
-    titles.append(el('span', 'printer-name'), count);
-    head.append(titles, el('span', 'printer-sub'));
-    const job = el('div', 'printer-job');
-    const prog = el('div', 'progress-row');
-    const bar = el('div', 'progress');
-    bar.appendChild(el('span'));
-    bar.setAttribute('role', 'progressbar');
-    bar.setAttribute('aria-valuemin', '0');
-    bar.setAttribute('aria-valuemax', '100');
-    prog.append(bar, el('span', 'progress-pct num'), el('span', 'progress-eta num'));
-    const metrics = el('div', 'metrics');
-    const visionSlot = el('div', 'vision-slot');
-    body.append(head, job, prog, metrics, visionSlot);
+    nameRow.append(el('span', 'printer-name'), count);
+    titles.append(nameRow, el('div', 'printer-job'));
+    const prog = el('div', 'printer-progress');
+    prog.append(el('span', 'progress-pct num'), el('span', 'progress-eta num'));
+    head.append(titles, prog);
+    body.append(head, el('div', 'stats'), el('div', 'vision-slot'));
 
-    media.appendChild(liveBtn);
     card.append(open, media, body);
     return card;
   }
@@ -284,58 +292,59 @@
     const media = card.querySelector('.printer-media');
     const img = media.querySelector('img');
     const empty = media.querySelector('.media-empty');
-    const tagR = media.querySelector('.media-tag-right');
+    const age = media.querySelector('.media-age');
     if (latest) {
       const capturedAt = latest.captured_at || latest.created_at;
-      media.dataset.stale = String(ageSec(capturedAt) > STALE_IMAGE_SEC);
+      const stale = ageSec(capturedAt) > STALE_IMAGE_SEC;
+      media.dataset.stale = String(stale);
       img.alt = `Camera ${name} lúc ${clock(capturedAt)}`;
       empty.hidden = true;
       if (img.dataset.id !== latest.id) {
-        setImage(img, latest.id, () => { empty.hidden = false; empty.textContent = 'Không tải được ảnh'; });
+        setImage(img, latest.id, () => { empty.hidden = false; empty.querySelector('.media-empty-text').textContent = 'Không tải được ảnh'; });
       }
-      tagR.textContent = `${ageSec(capturedAt) > STALE_IMAGE_SEC ? 'Ảnh cuối' : 'Ảnh'} ${relTime(capturedAt)}`;
-      tagR.hidden = false;
+      age.textContent = `${clock(capturedAt)} · ${relTime(capturedAt)}`;
+      age.hidden = false;
     } else {
       img.removeAttribute('src');
       delete img.dataset.id;
       empty.hidden = false;
-      tagR.hidden = true;
+      age.hidden = true;
     }
-    media.querySelector('.media-tag-left').dataset.status = status;
+    media.querySelector('.media-status').dataset.status = status;
     media.querySelector('.status-text').textContent = STATUS[status];
 
     card.querySelector('.printer-name').textContent = name;
     const openAlerts = openAlertsFor(p.printer_id).length;
     const countEl = card.querySelector('.alert-count');
     countEl.hidden = openAlerts === 0;
-    countEl.textContent = `${openAlerts} cảnh báo`;
-    card.querySelector('.printer-sub').textContent = [p.model, `cập nhật ${relTime(p.last_seen)}`].filter(Boolean).join(' · ');
+    countEl.textContent = '';
+    countEl.append(icon('bell'), document.createTextNode(String(openAlerts)));
+    countEl.title = `${openAlerts} cảnh báo chưa xử lý`;
 
     const job = card.querySelector('.printer-job');
-    job.textContent = t.job_name || '';
+    job.textContent = t.job_name || [p.model, `cập nhật ${relTime(p.last_seen)}`].filter(Boolean).join(' · ');
     job.title = t.job_name || '';
-    job.hidden = !t.job_name;
 
     const hasProgress = typeof t.progress === 'number';
-    const row = card.querySelector('.progress-row');
-    row.hidden = !hasProgress;
-    if (hasProgress) {
-      const pct = Math.min(100, Math.max(0, t.progress));
-      const bar = row.querySelector('.progress');
-      bar.dataset.state = status;
-      bar.setAttribute('aria-valuenow', String(pct));
-      bar.firstChild.style.width = `${pct}%`;
-      row.querySelector('.progress-pct').textContent = `${pct}%`;
-      row.querySelector('.progress-eta').textContent = status === 'printing' ? minutes(t.remaining_min) : (pct >= 100 ? 'xong' : '');
-    }
+    const pct = hasProgress ? Math.min(100, Math.max(0, t.progress)) : 0;
+    const line = media.querySelector('.progress-line');
+    line.hidden = !hasProgress;
+    line.dataset.state = status;
+    line.dataset.done = String(pct >= 100);
+    line.setAttribute('aria-valuenow', String(pct));
+    line.firstChild.style.width = `${pct}%`;
+    const progBox = card.querySelector('.printer-progress');
+    progBox.hidden = !hasProgress;
+    card.querySelector('.progress-pct').textContent = `${pct}%`;
+    card.querySelector('.progress-eta').textContent = status === 'printing' ? minutes(t.remaining_min) : (pct >= 100 ? 'Đã xong' : STATUS[status]);
 
-    const metrics = card.querySelector('.metrics');
-    metrics.textContent = '';
-    metrics.append(
-      metric('Đầu in', temp(t.nozzle_temp), t.nozzle_target ? temp(t.nozzle_target) : ''),
-      metric('Bàn in', temp(t.bed_temp), t.bed_target ? temp(t.bed_target) : ''),
-      metric('Lớp', t.current_layer !== undefined ? `${t.current_layer}/${t.total_layers ?? '?'}` : '--'),
-      metric('Quạt', t.fan_speed !== undefined ? `${t.fan_speed}%` : '--'),
+    const stats = card.querySelector('.stats');
+    stats.textContent = '';
+    stats.append(
+      stat('flame', 'Đầu in', temp(t.nozzle_temp), t.nozzle_target ? temp(t.nozzle_target) : ''),
+      stat('thermometer', 'Bàn in', temp(t.bed_temp), t.bed_target ? temp(t.bed_target) : ''),
+      stat('layers', 'Lớp', t.current_layer !== undefined ? `${t.current_layer}/${t.total_layers ?? '?'}` : '--'),
+      stat('fan', 'Quạt', t.fan_speed !== undefined ? `${t.fan_speed}%` : '--'),
     );
 
     const slot = card.querySelector('.vision-slot');
@@ -344,7 +353,7 @@
       && ageSec(latest.captured_at || latest.created_at) > STALE_IMAGE_SEC;
     let v = vision(latest);
     if (p.last_error) v = { state: 'warn', text: p.last_error };
-    else if (resting) v = { state: 'none', text: 'Máy không in nên camera tạm nghỉ. Ảnh sẽ tự cập nhật khi bắt đầu in.' };
+    else if (resting) v = { state: 'none', icon: 'rest', text: 'Máy không in nên camera tạm nghỉ, ảnh tự cập nhật khi bắt đầu in.' };
     slot.appendChild(visionBox(v));
   }
 
@@ -361,7 +370,9 @@
     const li = el('li', 'alert');
     li.dataset.severity = a.severity || 'warning';
     li.dataset.ack = String(Boolean(a.acknowledged));
-    li.appendChild(el('span', 'alert-bar'));
+    const ic = el('span', 'alert-icon');
+    ic.appendChild(icon(a.acknowledged ? 'check' : (a.severity === 'info' ? 'info' : 'triangle-alert')));
+    li.appendChild(ic);
     const main = el('div', 'alert-main');
     main.appendChild(el('p', 'alert-msg', a.message || 'Cảnh báo'));
     const source = showPrinter ? (names.get(a.printer_id) || a.printer_id || a.device_id || 'Hệ thống') : '';
@@ -369,10 +380,16 @@
       [SEVERITY[a.severity] || a.severity, source, `${clock(a.created_at, true)} (${relTime(a.created_at)})`].filter(Boolean).join(' · ')));
     li.appendChild(main);
     if (a.acknowledged) {
-      if (a.acked_by) li.appendChild(el('span', 'alert-acked', `Đã xử lý bởi ${a.acked_by}`));
+      const acked = el('span', 'alert-acked');
+      acked.append(icon('check-check'), el('span', '', a.acked_by ? a.acked_by : 'Đã xử lý'));
+      acked.title = a.acked_by ? `Đã xử lý bởi ${a.acked_by}` : 'Đã xử lý';
+      li.appendChild(acked);
     } else {
-      const btn = el('button', 'btn btn-sm', 'Đã xử lý');
+      const btn = el('button', 'ack-btn');
       btn.type = 'button';
+      btn.appendChild(icon('check'));
+      btn.setAttribute('aria-label', 'Đánh dấu đã xử lý');
+      btn.dataset.tip = 'Đã xử lý';
       btn.addEventListener('click', async () => {
         btn.disabled = true;
         try {
@@ -429,7 +446,8 @@
     root.textContent = '';
     const empty = $('alerts-empty');
     empty.hidden = list.length > 0;
-    empty.textContent = state.alertFilter === 'open' ? 'Không có cảnh báo cần xử lý.' : 'Chưa có cảnh báo nào.';
+    empty.querySelector('.empty-title').textContent = state.alertFilter === 'open' ? 'Không có cảnh báo cần xử lý' : 'Chưa có cảnh báo nào';
+    empty.querySelector('.empty-text').textContent = state.alertFilter === 'open' ? 'Mọi máy in đang ổn.' : '';
     const names = printerNames();
     const showPrinter = !state.alertPrinter || state.alertPrinter === '_system';
     list.slice(0, 50).forEach((a) => root.appendChild(alertItem(a, names, showPrinter)));
@@ -440,12 +458,26 @@
   // ---------------------------------------------------------------------------
   const CATEGORY = { printer: 'Máy in', alert: 'Cảnh báo', notify: 'Thông báo', ai: 'AI', settings: 'Cài đặt', device: 'Thiết bị', system: 'Hệ thống' };
 
+  const CATEGORY_ICON = { printer: 'printer', alert: 'bell', notify: 'send', ai: 'sparkles', settings: 'settings', device: 'plug', system: 'refresh-cw' };
+
+  function dayLabel(value) {
+    const d = toDate(value);
+    if (!d) return '';
+    const start = (x) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+    const diff = Math.round((start(new Date()) - start(d)) / 86400000);
+    if (diff === 0) return 'Hôm nay';
+    if (diff === 1) return 'Hôm qua';
+    return d.toLocaleDateString('vi-VN', { weekday: 'long', day: '2-digit', month: '2-digit' });
+  }
+
   function eventItem(e, names, compact = false) {
     const li = el('li', 'event');
     li.dataset.level = e.level;
     li.dataset.category = e.category;
-    li.appendChild(el('span', 'event-time', compact ? clock(e.created_at) : clock(e.created_at, true)));
-    li.appendChild(el('span', 'event-dot'));
+    li.appendChild(el('span', 'event-time num', clock(e.created_at)));
+    const ic = el('span', 'event-icon');
+    ic.appendChild(icon(e.level === 'error' || e.level === 'warning' ? 'triangle-alert' : (CATEGORY_ICON[e.category] || 'info')));
+    li.appendChild(ic);
     const body = el('div', 'event-msg');
     body.appendChild(document.createTextNode(e.message));
     const meta = [CATEGORY[e.category] || e.category];
@@ -489,7 +521,12 @@
     const root = $('events');
     root.textContent = '';
     const names = printerNames();
-    state.events.items.forEach((e) => root.appendChild(eventItem(e, names)));
+    let day = null;
+    state.events.items.forEach((e) => {
+      const label = dayLabel(e.created_at);
+      if (label !== day) { day = label; root.appendChild(el('li', 'day', label)); }
+      root.appendChild(eventItem(e, names));
+    });
     $('events-empty').hidden = state.events.items.length > 0;
     $('events-more').hidden = !state.events.next;
   }
@@ -519,8 +556,9 @@
       det.dataset.id = a.id;
       det.open = openIds.has(a.id);
       const sum = el('summary');
-      const left = el('div');
-      left.style.minWidth = '0';
+      const ic = el('span', 'analysis-icon');
+      ic.appendChild(icon('wand-sparkles'));
+      const left = el('div', 'analysis-head');
       left.appendChild(el('div', 'analysis-name', a.filename || 'Model'));
       const changes = Array.isArray(a.changes) ? a.changes : [];
       const meta = [OBJECTIVE[a.objective] || a.objective, TRIGGER[a.trigger] || a.trigger, relTime(a.created_at)].filter(Boolean).join(' · ');
@@ -528,7 +566,7 @@
       const tag = a.status === 'error'
         ? el('span', 'tag tag-danger', 'Lỗi')
         : el('span', changes.length ? 'tag tag-ok' : 'tag', changes.length ? `${changes.length} thay đổi` : 'Giữ nguyên');
-      sum.append(left, tag);
+      sum.append(ic, left, tag, icon('chevron-down', 'analysis-chevron'));
       det.appendChild(sum);
 
       const body = el('div', 'analysis-body');
@@ -595,8 +633,11 @@
   function renderLiveButton() {
     const btn = $('btn-live');
     const on = Boolean(state.live && state.live.printerId === state.detailPrinterId);
-    btn.textContent = on ? 'Dừng xem' : 'Xem trực tiếp';
+    btn.setAttribute('aria-label', on ? 'Dừng xem' : 'Xem trực tiếp');
     btn.setAttribute('aria-pressed', String(on));
+    btn.querySelector('.live-toggle-label').textContent = on ? 'Dừng' : 'Trực tiếp';
+    btn.querySelector('[data-live="off"]').hidden = on;
+    btn.querySelector('[data-live="on"]').hidden = !on;
   }
 
   async function startLive(printerId) {
@@ -633,7 +674,7 @@
         const now = Date.now();
         L.frames = L.frames.filter((t) => now - t < 15000).concat(now);
         const fps = L.frames.length > 1 ? (L.frames.length - 1) / ((now - L.frames[0]) / 1000) : 0;
-        liveCaption(`● TRỰC TIẾP · ${fps ? fps.toFixed(1) : '…'} khung/giây · ${clock(new Date().toISOString())}`, 'live');
+        liveCaption(`TRỰC TIẾP · ${fps ? fps.toFixed(1) : '…'} fps · ${clock(new Date().toISOString())}`, 'live');
         waitingSince = now;
       }
     } catch (err) {
@@ -690,8 +731,14 @@
       b.disabled = !enabled;
     });
     const light = $('ctl-light');
-    light.textContent = t.light === 'on' ? 'Tắt đèn' : 'Bật đèn';
-    light.dataset.mode = t.light === 'on' ? 'off' : 'on';
+    const lit = t.light === 'on';
+    light.dataset.mode = lit ? 'off' : 'on';
+    light.setAttribute('aria-label', lit ? 'Tắt đèn' : 'Bật đèn');
+    light.dataset.tip = lit ? 'Tắt đèn' : 'Bật đèn';
+    light.setAttribute('aria-pressed', String(lit));
+    light.querySelector('[data-light="on"]').hidden = lit;
+    light.querySelector('[data-light="off"]').hidden = !lit;
+    $('speed-current').textContent = SPEED[t.speed_level] || '--';
     if (!busy && status === 'offline') ctlStatus('Máy in mất kết nối, không thể điều khiển.', 'error');
   }
 
@@ -754,7 +801,11 @@
     const status = printerStatus(p);
 
     $('detail-title').textContent = printerName(p);
-    $('detail-sub').textContent = [p.model, STATUS[status], t.job_name].filter(Boolean).join(' · ');
+    $('detail-sub').textContent = [p.model, t.job_name].filter(Boolean).join(' · ');
+    const pill = $('detail-status');
+    pill.dataset.status = status;
+    pill.textContent = '';
+    pill.append(el('span', 'status-dot'), document.createTextNode(STATUS[status]));
 
     const img = $('detail-img');
     const watching = state.live && state.live.printerId === p.printer_id;
@@ -770,13 +821,13 @@
     } else {
       img.removeAttribute('src');
       delete img.dataset.id;
-      $('detail-caption').textContent = 'Chưa có ảnh';
+      $('detail-caption').textContent = '';
     }
 
     let dv = vision(current);
     if ((status === 'idle' || status === 'offline') && current === snaps[0] && current
         && ageSec(current.captured_at || current.created_at) > STALE_IMAGE_SEC) {
-      dv = { state: 'none', text: 'Máy không in nên camera tạm nghỉ. Ảnh sẽ tự cập nhật khi bắt đầu in.' };
+      dv = { state: 'none', icon: 'rest', text: 'Máy không in nên camera tạm nghỉ, ảnh tự cập nhật khi bắt đầu in.' };
     }
     const fresh = visionBox(dv);
     fresh.id = 'detail-vision';
@@ -788,7 +839,6 @@
     kv.textContent = '';
     const tempPair = (v, target) => (v !== undefined ? `${temp(v)}C${target ? ` → ${temp(target)}C` : ''}` : '--');
     [
-      ['Trạng thái', STATUS[status]],
       ['Tiến độ', typeof tv.progress === 'number' ? `${tv.progress}%` : '--'],
       ['Thời gian còn lại', status === 'printing' && tv.remaining_min !== undefined ? minutes(tv.remaining_min).replace('còn ', '') : '--'],
       ['Lớp', tv.current_layer !== undefined ? `${tv.current_layer} / ${tv.total_layers ?? '?'}` : '--'],
@@ -1059,12 +1109,15 @@
     const chip = $('user-chip');
     $('btn-settings').hidden = !(state.tsUser || state.token);
     if (state.tsUser) {
-      chip.textContent = state.tsUser;
-      chip.title = 'Đăng nhập bằng tài khoản Tailscale';
+      chip.textContent = state.tsUser.slice(0, 1);
+      chip.title = `${state.tsUser} (Tailscale)`;
+      chip.setAttribute('aria-label', `Đăng nhập: ${state.tsUser}`);
       chip.hidden = false;
       $('btn-logout').hidden = true;
     } else {
-      chip.textContent = 'Mã quản lý';
+      chip.textContent = '';
+      chip.appendChild(icon('key-round'));
+      chip.title = 'Đăng nhập bằng mã quản lý';
       chip.hidden = !state.token;
       $('btn-logout').hidden = !state.token;
     }
@@ -1112,7 +1165,7 @@
     const t = currentTheme();
     document.querySelectorAll('#btn-theme [data-icon]').forEach((svg) => { svg.hidden = svg.dataset.icon !== t; });
     document.querySelectorAll('[data-theme-choice]').forEach((b) => b.setAttribute('aria-checked', String(b.dataset.themeChoice === t)));
-    $('btn-theme').title = `Giao diện: ${{ auto: 'Tự động', light: 'Sáng', dark: 'Tối' }[t]}`;
+    $('btn-theme').dataset.tip = `Giao diện: ${{ auto: 'Theo hệ thống', light: 'Sáng', dark: 'Tối' }[t]}`;
   }
   function bindTheme() {
     const btn = $('btn-theme');
@@ -1134,7 +1187,29 @@
     renderThemeSwitch();
   }
 
+  // ---------------------------------------------------------------------------
+  // Tabs (hash routes: #printers, #alerts, #ai, #log)
+  // ---------------------------------------------------------------------------
+  const TABS = ['printers', 'alerts', 'ai', 'log'];
+  const TAB_TITLE = { printers: 'Máy in', alerts: 'Cảnh báo', ai: 'Tối ưu thông số', log: 'Nhật ký' };
+  function currentTab() {
+    const h = location.hash.replace(/^#\/?/, '');
+    return TABS.includes(h) ? h : 'printers';
+  }
+  function showTab() {
+    const tab = currentTab();
+    document.querySelectorAll('.view[data-view]').forEach((v) => { v.hidden = v.dataset.view !== tab; });
+    document.querySelectorAll('.nav-item[data-tab]').forEach((a) => {
+      if (a.dataset.tab === tab) a.setAttribute('aria-current', 'page');
+      else a.removeAttribute('aria-current');
+    });
+    document.title = tab === 'printers' ? 'PrintPilot' : `${TAB_TITLE[tab]} · PrintPilot`;
+    window.scrollTo(0, 0);
+  }
+
   function bind() {
+    showTab();
+    window.addEventListener('hashchange', showTab);
     bindTheme();
     bindSettings();
     ['ev-printer', 'ev-category', 'ev-problems'].forEach((id) => $(id).addEventListener('change', () => loadEvents(true)));
