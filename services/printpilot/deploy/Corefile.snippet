@@ -1,0 +1,11 @@
+# Append to /opt/9router/Corefile, then: cd /opt/9router && docker compose restart coredns
+3d.lampt.works:53 {
+    bind 100.67.67.24
+    template IN A 3d.lampt.works {
+        answer "3d.lampt.works. 60 IN A 100.67.67.24"
+    }
+    template IN AAAA 3d.lampt.works {
+        rcode NOERROR
+    }
+    errors
+}

@@ -1,0 +1,13 @@
+# PrintPilot dashboard, tailnet only (same model as 9r.lampt.works).
+# Install: copy to /etc/caddy-extra/printpilot.caddy, then
+#   cd /opt/9router && docker compose restart caddy
+3d.lampt.works {
+	tls {
+		dns cloudflare {$CF_DNS_API_TOKEN}
+		resolvers 1.1.1.1
+	}
+	encode zstd gzip
+	reverse_proxy 100.67.67.24:18790 {
+		header_up X-Forwarded-Proto https
+	}
+}
