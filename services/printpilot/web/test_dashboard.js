@@ -195,6 +195,25 @@ async function main() {
     await page.waitForFunction(() => document.querySelector('[data-result="cleanup"]').dataset.state === 'ok');
     await page.click('#settings .dialog-foot [data-close]');
 
+    console.log('8b. Theme switch overrides the OS and persists');
+    await page.emulateMedia({ colorScheme: 'dark' });
+    const bg = () => page.evaluate(() => getComputedStyle(document.body).backgroundColor);
+    const darkBg = await bg();
+    await page.click('#btn-theme');
+    await page.click('[data-theme-choice="light"]');
+    assert.strictEqual(await page.getAttribute('html', 'data-theme'), 'light');
+    assert.notStrictEqual(await bg(), darkBg);
+    await page.reload();
+    await page.waitForSelector('.printer');
+    assert.strictEqual(await page.getAttribute('html', 'data-theme'), 'light');
+    await page.click('#btn-theme');
+    await page.click('[data-theme-choice="dark"]');
+    assert.strictEqual(await bg(), darkBg);
+    await page.click('#btn-theme');
+    await page.click('[data-theme-choice="auto"]');
+    assert.strictEqual(await page.getAttribute('html', 'data-theme'), null);
+    assert.strictEqual(await bg(), darkBg); // OS is dark
+
     console.log('9. No horizontal overflow on phone width');
     await page.setViewportSize({ width: 360, height: 780 });
     assert.ok(!(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth)));

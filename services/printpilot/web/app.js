@@ -993,7 +993,52 @@
     } catch { /* older server or offline */ }
   }
 
+  // ---------------------------------------------------------------------------
+  // Theme (auto / light / dark), remembered per browser
+  // ---------------------------------------------------------------------------
+  const THEME_KEY = 'printpilot_theme';
+  function currentTheme() {
+    const t = document.documentElement.getAttribute('data-theme');
+    return t === 'light' || t === 'dark' ? t : 'auto';
+  }
+  function applyTheme(choice) {
+    if (choice === 'light' || choice === 'dark') {
+      document.documentElement.setAttribute('data-theme', choice);
+      try { localStorage.setItem(THEME_KEY, choice); } catch { /* ignore */ }
+    } else {
+      document.documentElement.removeAttribute('data-theme');
+      try { localStorage.removeItem(THEME_KEY); } catch { /* ignore */ }
+    }
+    renderThemeSwitch();
+  }
+  function renderThemeSwitch() {
+    const t = currentTheme();
+    document.querySelectorAll('#btn-theme [data-icon]').forEach((svg) => { svg.hidden = svg.dataset.icon !== t; });
+    document.querySelectorAll('[data-theme-choice]').forEach((b) => b.setAttribute('aria-checked', String(b.dataset.themeChoice === t)));
+    $('btn-theme').title = `Giao diện: ${{ auto: 'Tự động', light: 'Sáng', dark: 'Tối' }[t]}`;
+  }
+  function bindTheme() {
+    const btn = $('btn-theme');
+    const menu = $('theme-menu');
+    const close = () => { menu.hidden = true; btn.setAttribute('aria-expanded', 'false'); };
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      menu.hidden = !menu.hidden;
+      btn.setAttribute('aria-expanded', String(!menu.hidden));
+      if (!menu.hidden) menu.querySelector('[aria-checked="true"]')?.focus();
+    });
+    menu.querySelectorAll('[data-theme-choice]').forEach((b) => b.addEventListener('click', () => {
+      applyTheme(b.dataset.themeChoice);
+      close();
+      btn.focus();
+    }));
+    document.addEventListener('click', (e) => { if (!menu.hidden && !menu.contains(e.target)) close(); });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !menu.hidden) { close(); btn.focus(); } });
+    renderThemeSwitch();
+  }
+
   function bind() {
+    bindTheme();
     bindSettings();
     ['ev-printer', 'ev-category', 'ev-problems'].forEach((id) => $(id).addEventListener('change', () => loadEvents(true)));
     $('events-more').addEventListener('click', () => loadEvents(false));

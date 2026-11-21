@@ -28,8 +28,9 @@
   --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
 }
 
+/* Dark theme: follows the OS unless the user picked a theme */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
     --bg: #0d1117;
     --surface: #151b23;
     --surface-2: #1c232d;
@@ -52,6 +53,30 @@
     --shadow: none;
   }
 }
+:root[data-theme="dark"] {
+  --bg: #0d1117;
+  --surface: #151b23;
+  --surface-2: #1c232d;
+  --border: #262f3b;
+  --text: #e8edf3;
+  --text-2: #aab4c0;
+  --text-3: #6f7b8a;
+  --accent: #34d399;
+  --accent-soft: rgba(52, 211, 153, 0.12);
+  --ok: #34d399;
+  --info: #60a5fa;
+  --warn: #fbbf24;
+  --danger: #f87171;
+  --idle: #9ca3af;
+  --ok-soft: rgba(52, 211, 153, 0.14);
+  --info-soft: rgba(96, 165, 250, 0.14);
+  --warn-soft: rgba(251, 191, 36, 0.14);
+  --danger-soft: rgba(248, 113, 113, 0.15);
+  --idle-soft: rgba(156, 163, 175, 0.14);
+  --shadow: none;
+}
+:root[data-theme="light"] { color-scheme: light; }
+:root[data-theme="dark"] { color-scheme: dark; }
 
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
@@ -743,3 +768,36 @@ img { display: block; max-width: 100%; }
 .controls .action-result:empty { display: none; }
 .ctl-row .btn { white-space: nowrap; padding-left: 8px; padding-right: 8px; }
 .controls .btn:disabled, .controls .seg:disabled { opacity: 0.38; }
+
+/* ---------- Theme switch ---------- */
+.theme-switch { position: relative; }
+.theme-switch svg { width: 20px; height: 20px; }
+.theme-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  min-width: 190px;
+  white-space: nowrap;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.18);
+  padding: 4px;
+  z-index: 20;
+}
+.theme-menu button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  padding: 7px 10px;
+  border-radius: 6px;
+  font-size: 13px;
+  cursor: pointer;
+  text-align: left;
+}
+.theme-menu button:hover { background: var(--surface-2); }
+.theme-menu button[aria-checked="true"] { color: var(--accent); font-weight: 600; }
+.theme-menu button[aria-checked="true"]::after { content: "✓"; margin-left: auto; }
