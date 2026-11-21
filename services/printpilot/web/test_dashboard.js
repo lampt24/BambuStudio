@@ -218,6 +218,32 @@ async function main() {
     assert.strictEqual(await page.getAttribute('#btn-live', 'aria-pressed'), 'false');
     await tab('printers');
 
+    console.log('4g. Card controls: enabled by state, command round-trip, feedback on the card');
+    const c1 = page.locator('.printer[data-printer="a1-01"] .card-actions');
+    const c2 = page.locator('.printer[data-printer="a1-02"] .card-actions');
+    assert.ok(await c1.locator('[data-toggle="pause"]').isEnabled());
+    assert.strictEqual(await c1.locator('[data-toggle="pause"]').getAttribute('aria-label'), 'Tạm dừng');
+    assert.ok(await c2.locator('[data-toggle="pause"]').isDisabled());   // idle printer
+    assert.ok(await c2.locator('[data-cmd="stop"]').isDisabled());
+    assert.ok(await c2.locator('[data-cmd="light"]').isEnabled());
+    await c2.locator('[data-cmd="light"]').click();
+    let cardCmd = [];
+    for (let i = 0; i < 20 && !cardCmd.length; i++) {
+      await new Promise((r) => setTimeout(r, 300));
+      cardCmd = (await devPoll()).commands;
+    }
+    assert.deepStrictEqual([cardCmd[0].printer_id, cardCmd[0].command, cardCmd[0].params.mode], ['a1-02', 'light', 'on']);
+    assert.ok(await c2.locator('[data-cmd="light"]').isDisabled());   // busy while in flight
+    assert.ok(await c1.locator('[data-cmd="light"]').isEnabled());    // other printer unaffected
+    assert.strictEqual(await post('/api/device/commands/result', { id: cardCmd[0].id, ok: true, reason: 'success' }), 200);
+    await page.waitForFunction(() => document.querySelector('.printer[data-printer="a1-02"] .card-msg').textContent.includes('đã thực hiện'), null, { timeout: 10000 });
+    await page.waitForFunction(() => document.querySelector('.printer[data-printer="a1-02"] [data-cmd="light"]').getAttribute('aria-label') === 'Tắt đèn');
+    // exactly one icon visible per toggle button (SVG needs the hidden attribute, not the property)
+    const visibleIcons = (sel) => page.$$eval(`${sel} svg`, (svgs) => svgs.filter((x) => getComputedStyle(x).display !== 'none').map((x) => x.querySelector('use').getAttribute('href')));
+    assert.deepStrictEqual(await visibleIcons('.printer[data-printer="a1-02"] [data-cmd="light"]'), ['#i-lightbulb-off']);
+    assert.deepStrictEqual(await visibleIcons('.printer[data-printer="a1-01"] [data-toggle="pause"]'), ['#i-pause']);
+    assert.strictEqual((await visibleIcons('#btn-theme')).length, 1);
+
     console.log('5. Ack removes the alert from the open list');
     await tab('alerts');
     const before = await page.locator('#alerts .alert').count();

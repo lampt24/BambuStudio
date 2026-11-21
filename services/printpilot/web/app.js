@@ -46,7 +46,8 @@
     events: { items: [], next: null, pagedBeyondFirst: false, loading: false },
     detailPrinterId: null,
     detailSnapshotId: null,
-    cmd: null,                   // { printerId, id, label } while a control command is in flight
+    cmds: {},                    // printerId -> label while a control command is in flight
+    cmdMsg: {},                  // printerId -> { text, kind, at }: last command feedback
     expect: {},                  // printerId -> { key, value, until }: confirmed command, server may lag
     live: null,                  // { printerId, seq, token, url, frames:[t...] } while watching
     timer: null,
@@ -317,10 +318,40 @@
     const prog = el('div', 'printer-progress');
     prog.append(el('span', 'progress-pct num'), el('span', 'progress-eta num'));
     head.append(titles, prog);
-    body.append(head, el('div', 'stats'), el('div', 'vision-slot'));
+    body.append(head, el('div', 'stats'), buildCardActions(printerId), el('div', 'vision-slot'));
 
     card.append(open, media, body);
     return card;
+  }
+
+  function iconButton(cls, label, iconName, extra = {}) {
+    const b = el('button', cls);
+    b.type = 'button';
+    b.setAttribute('aria-label', label);
+    b.dataset.tip = label;
+    Object.assign(b.dataset, extra);
+    if (iconName) b.appendChild(icon(iconName));
+    return b;
+  }
+
+  function buildCardActions(printerId) {
+    const row = el('div', 'card-actions');
+    const toggle = iconButton('card-btn', 'Tạm dừng', null, { cmd: 'pause', toggle: 'pause' });
+    const pause = icon('pause'); pause.dataset.icon = 'pause';
+    const play = icon('play'); play.dataset.icon = 'play'; play.setAttribute('hidden', '');
+    toggle.append(pause, play);
+    const stop = iconButton('card-btn card-danger', 'Dừng in', 'octagon-x', { cmd: 'stop' });
+    const light = iconButton('card-btn', 'Bật đèn', null, { cmd: 'light' });
+    const on = icon('lightbulb'); on.dataset.light = 'on';
+    const off = icon('lightbulb-off'); off.dataset.light = 'off'; off.setAttribute('hidden', '');
+    light.append(on, off);
+    const more = iconButton('card-btn card-more', 'Chi tiết', 'maximize-2');
+    more.addEventListener('click', (e) => { e.stopPropagation(); openDetail(printerId); });
+    [toggle, stop, light].forEach((b) => b.addEventListener('click', (e) => { e.stopPropagation(); runCommand(b, printerId); }));
+    const msg = el('span', 'card-msg');
+    msg.setAttribute('role', 'status');
+    row.append(toggle, stop, light, msg, more);
+    return row;
   }
 
   function updatePrinterCard(card, p) {
@@ -393,6 +424,9 @@
       stat('layers', 'Lớp', t.current_layer !== undefined ? `${t.current_layer}/${t.total_layers ?? '?'}` : '--'),
       stat('fan', 'Quạt', t.fan_speed !== undefined ? `${t.fan_speed}%` : '--'),
     );
+
+    applyControls(card, p);
+    renderCardMsg(card, p.printer_id);
 
     const slot = card.querySelector('.vision-slot');
     slot.textContent = '';
@@ -657,10 +691,7 @@
   // Detail dialog
   // ---------------------------------------------------------------------------
   function openDetail(printerId, live = false) {
-    if (state.detailPrinterId !== printerId) {
-      ctlStatus('');
-      if (state.live) stopLive();
-    }
+    if (state.detailPrinterId !== printerId && state.live) stopLive();
     state.detailPrinterId = printerId;
     state.detailSnapshotId = null;
     const dlg = $('detail');
@@ -714,8 +745,8 @@
     btn.setAttribute('aria-label', on ? 'Dừng xem' : 'Xem trực tiếp');
     btn.setAttribute('aria-pressed', String(on));
     btn.querySelector('.live-toggle-label').textContent = on ? 'Dừng' : 'Trực tiếp';
-    btn.querySelector('[data-live="off"]').hidden = on;
-    btn.querySelector('[data-live="on"]').hidden = !on;
+    btn.querySelector('[data-live="off"]').toggleAttribute('hidden', on);
+    btn.querySelector('[data-live="on"]').toggleAttribute('hidden', !on);
   }
 
   async function startLive(printerId) {
@@ -783,22 +814,49 @@
   const SPEED = { 1: 'Êm', 2: 'Chuẩn', 3: 'Thể thao', 4: 'Siêu tốc' };
   const CMD_LABEL = { pause: 'Tạm dừng', resume: 'Tiếp tục', stop: 'Dừng in' };
 
+  // Feedback for one printer, shown on its card and in the detail panel
+  function cmdStatus(printerId, text, kind = '') {
+    if (text) state.cmdMsg[printerId] = { text, kind, at: Date.now() };
+    else delete state.cmdMsg[printerId];
+    if (state.detailPrinterId === printerId) ctlStatus(text, kind);
+    const card = document.querySelector(`#printers .printer[data-printer="${CSS.escape(printerId)}"]`);
+    if (card) renderCardMsg(card, printerId);
+  }
   function ctlStatus(text, kind = '') {
     const n = $('ctl-status');
     n.textContent = text;
     n.dataset.state = kind;
   }
+  function renderCardMsg(card, printerId) {
+    const m = state.cmdMsg[printerId];
+    const n = card.querySelector('.card-msg');
+    // Success fades after a few seconds; errors stay a little longer
+    const fresh = m && (Date.now() - m.at) < (m.kind === 'error' ? 20000 : m.kind === 'ok' ? 6000 : 60000);
+    n.textContent = fresh ? m.text : '';
+    n.dataset.state = fresh ? m.kind : '';
+    clearTimeout(card.msgTimer);
+    if (fresh && m.kind) card.msgTimer = setTimeout(() => renderCardMsg(card, printerId), 6100);
+  }
 
-  function renderControls(p) {
+  // Enable/label every [data-cmd] button under root for printer p
+  function applyControls(root, p) {
     const status = printerStatus(p);
     const t = p.telemetry || {};
-    const busy = Boolean(state.cmd);
+    const busy = Boolean(state.cmds[p.printer_id]);
     const allowed = {
       pause: status === 'printing',
       resume: status === 'paused',
       stop: ['printing', 'paused', 'error'].includes(status),
     };
-    document.querySelectorAll('#detail [data-cmd]').forEach((b) => {
+    root.querySelectorAll('[data-toggle="pause"]').forEach((b) => {
+      const resume = status === 'paused';
+      b.dataset.cmd = resume ? 'resume' : 'pause';
+      b.setAttribute('aria-label', resume ? 'Tiếp tục' : 'Tạm dừng');
+      b.dataset.tip = resume ? 'Tiếp tục' : 'Tạm dừng';
+      b.querySelector('[data-icon="pause"]').toggleAttribute('hidden', resume);
+      b.querySelector('[data-icon="play"]').toggleAttribute('hidden', !resume);
+    });
+    root.querySelectorAll('[data-cmd]').forEach((b) => {
       const cmd = b.dataset.cmd;
       let enabled = status !== 'offline' && !busy;
       if (cmd in allowed) enabled = enabled && allowed[cmd];
@@ -808,21 +866,39 @@
       }
       b.disabled = !enabled;
     });
-    const light = $('ctl-light');
     const lit = t.light === 'on';
-    light.dataset.mode = lit ? 'off' : 'on';
-    light.setAttribute('aria-label', lit ? 'Tắt đèn' : 'Bật đèn');
-    light.dataset.tip = lit ? 'Tắt đèn' : 'Bật đèn';
-    light.setAttribute('aria-pressed', String(lit));
-    light.querySelector('[data-light="on"]').hidden = lit;
-    light.querySelector('[data-light="off"]').hidden = !lit;
-    $('speed-current').textContent = SPEED[t.speed_level] || '--';
-    if (!busy && status === 'offline') ctlStatus('Máy in mất kết nối, không thể điều khiển.', 'error');
+    root.querySelectorAll('[data-cmd="light"]').forEach((light) => {
+      light.dataset.mode = lit ? 'off' : 'on';
+      light.setAttribute('aria-label', lit ? 'Tắt đèn' : 'Bật đèn');
+      light.dataset.tip = lit ? 'Tắt đèn' : 'Bật đèn';
+      light.setAttribute('aria-pressed', String(lit));
+      light.querySelector('[data-light="on"]').toggleAttribute('hidden', lit);
+      light.querySelector('[data-light="off"]').toggleAttribute('hidden', !lit);
+    });
   }
 
-  async function runCommand(button) {
-    const p = (state.data.printers || []).find((x) => x.printer_id === state.detailPrinterId);
-    if (!p || state.cmd) return;
+  function renderControls(p) {
+    applyControls($('detail'), p);
+    const t = p.telemetry || {};
+    $('speed-current').textContent = SPEED[t.speed_level] || '--';
+    const m = state.cmdMsg[p.printer_id];
+    if (state.cmds[p.printer_id] || (m && Date.now() - m.at < 20000)) ctlStatus(m ? m.text : '', m ? m.kind : '');
+    else if (printerStatus(p) === 'offline') ctlStatus('Máy in mất kết nối, không thể điều khiển.', 'error');
+    else ctlStatus('');
+  }
+
+  function refreshControls(printerId) {
+    const p = (state.data.printers || []).find((x) => x.printer_id === printerId);
+    if (!p) return;
+    const card = document.querySelector(`#printers .printer[data-printer="${CSS.escape(printerId)}"]`);
+    if (card) applyControls(card, p);
+    if (state.detailPrinterId === printerId) renderControls(p);
+  }
+
+  async function runCommand(button, printerId) {
+    const p = (state.data.printers || []).find((x) => x.printer_id === printerId);
+    if (!p || state.cmds[p.printer_id]) return;
+    const pid = p.printer_id;
     const command = button.dataset.cmd;
     const params = {};
     let label = CMD_LABEL[command] || command;
@@ -830,38 +906,36 @@
     if (command === 'speed') { params.level = Number(button.dataset.level); label = `Tốc độ ${SPEED[params.level]}`; }
     if (command === 'stop' && !window.confirm(`Dừng hẳn bản in trên ${printerName(p)}? Không thể tiếp tục sau khi dừng.`)) return;
 
-    state.cmd = { printerId: p.printer_id, id: null, label };
-    renderControls(p);
-    ctlStatus(`${label}: đang gửi tới cầu nối…`);
+    state.cmds[pid] = label;
+    refreshControls(pid);
+    cmdStatus(pid, `${label}: đang gửi…`);
     try {
-      const { status, data } = await postJsonAllowError(`/api/printers/${encodeURIComponent(p.printer_id)}/commands`, { command, params });
-      if (status !== 202) { ctlStatus(data.error || 'Không gửi được lệnh', 'error'); return; }
-      state.cmd.id = data.id;
+      const { status, data } = await postJsonAllowError(`/api/printers/${encodeURIComponent(pid)}/commands`, { command, params });
+      if (status !== 202) { cmdStatus(pid, data.error || 'Không gửi được lệnh', 'error'); return; }
       const deadline = Date.now() + 45000;
       while (Date.now() < deadline) {
         await new Promise((r) => setTimeout(r, 1500));
         const st = await (await api(`/api/commands/${encodeURIComponent(data.id)}`)).json();
-        if (st.status === 'sent') ctlStatus(`${label}: máy in đang xử lý…`);
+        if (st.status === 'sent') cmdStatus(pid, `${label}: máy in đang xử lý…`);
         if (st.status === 'done') {
-          ctlStatus(`${label}: máy in đã thực hiện.`, 'ok');
+          cmdStatus(pid, `${label}: máy in đã thực hiện.`, 'ok');
           // Show the confirmed state now; an older bridge may report it up to 30 s later
-          if (command === 'light') state.expect[p.printer_id] = { key: 'light', value: params.mode, until: Date.now() + 40000 };
-          if (command === 'speed') state.expect[p.printer_id] = { key: 'speed_level', value: params.level, until: Date.now() + 40000 };
+          if (command === 'light') state.expect[pid] = { key: 'light', value: params.mode, until: Date.now() + 40000 };
+          if (command === 'speed') state.expect[pid] = { key: 'speed_level', value: params.level, until: Date.now() + 40000 };
           applyExpectations();
           sync();
           return;
         }
-        if (st.status === 'failed') { ctlStatus(`${label}: máy in từ chối (${st.result || 'không rõ'}).`, 'error'); return; }
-        if (st.status === 'expired') { ctlStatus(`${label}: cầu nối không nhận lệnh. Kiểm tra Redmi.`, 'error'); return; }
+        if (st.status === 'failed') { cmdStatus(pid, `${label}: máy in từ chối (${st.result || 'không rõ'}).`, 'error'); return; }
+        if (st.status === 'expired') { cmdStatus(pid, `${label}: cầu nối không nhận lệnh. Kiểm tra Redmi.`, 'error'); return; }
       }
-      ctlStatus(`${label}: quá thời gian chờ phản hồi.`, 'error');
+      cmdStatus(pid, `${label}: quá thời gian chờ phản hồi.`, 'error');
     } catch (err) {
       if (err instanceof AuthError) handleError(err);
-      else ctlStatus('Lỗi kết nối máy chủ', 'error');
+      else cmdStatus(pid, 'Lỗi kết nối máy chủ', 'error');
     } finally {
-      state.cmd = null;
-      const cur = (state.data.printers || []).find((x) => x.printer_id === state.detailPrinterId);
-      if (cur) renderControls(cur);
+      delete state.cmds[pid];
+      refreshControls(pid);
     }
   }
 
@@ -1263,7 +1337,7 @@
   }
   function renderThemeSwitch() {
     const t = currentTheme();
-    document.querySelectorAll('#btn-theme [data-icon]').forEach((svg) => { svg.hidden = svg.dataset.icon !== t; });
+    document.querySelectorAll('#btn-theme [data-icon]').forEach((svg) => { svg.toggleAttribute('hidden', svg.dataset.icon !== t); });
     document.querySelectorAll('[data-theme-choice]').forEach((b) => b.setAttribute('aria-checked', String(b.dataset.themeChoice === t)));
     $('btn-theme').dataset.tip = `Giao diện: ${{ auto: 'Theo hệ thống', light: 'Sáng', dark: 'Tối' }[t]}`;
   }
@@ -1331,7 +1405,7 @@
       else if (state.detailPrinterId) startLive(state.detailPrinterId);
     });
     window.addEventListener('pagehide', () => stopLive());
-    detail.querySelectorAll('[data-cmd]').forEach((b) => b.addEventListener('click', () => runCommand(b)));
+    detail.querySelectorAll('[data-cmd]').forEach((b) => b.addEventListener('click', () => runCommand(b, state.detailPrinterId)));
 
     const login = $('login');
     login.addEventListener('cancel', (e) => e.preventDefault()); // must authenticate
