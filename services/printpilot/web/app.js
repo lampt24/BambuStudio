@@ -28,6 +28,8 @@
     tsUser: '',
     data: { printers: [], snapshots: [], alerts: [], analyses: [], devices: [], config: {} },
     alertFilter: 'open',
+    alertPrinter: '',            // '' = all, printer_id, or '_system'
+    events: { items: [], next: null, pagedBeyondFirst: false, loading: false },
     detailPrinterId: null,
     detailSnapshotId: null,
     timer: null,
@@ -234,7 +236,11 @@
 
     const body = el('div', 'printer-body');
     const head = el('div', 'printer-head');
-    head.append(el('span', 'printer-name'), el('span', 'printer-sub'));
+    const titles = el('span', 'printer-titles');
+    const count = el('span', 'alert-count');
+    count.hidden = true;
+    titles.append(el('span', 'printer-name'), count);
+    head.append(titles, el('span', 'printer-sub'));
     const job = el('div', 'printer-job');
     const prog = el('div', 'progress-row');
     const bar = el('div', 'progress');
@@ -274,7 +280,7 @@
       if (img.dataset.id !== latest.id) {
         setImage(img, latest.id, () => { empty.hidden = false; empty.textContent = 'Không tải được ảnh'; });
       }
-      tagR.textContent = `Ảnh ${relTime(capturedAt)}`;
+      tagR.textContent = `${ageSec(capturedAt) > STALE_IMAGE_SEC ? 'Ảnh cuối' : 'Ảnh'} ${relTime(capturedAt)}`;
       tagR.hidden = false;
     } else {
       img.removeAttribute('src');
@@ -286,6 +292,10 @@
     media.querySelector('.status-text').textContent = STATUS[status];
 
     card.querySelector('.printer-name').textContent = name;
+    const openAlerts = openAlertsFor(p.printer_id).length;
+    const countEl = card.querySelector('.alert-count');
+    countEl.hidden = openAlerts === 0;
+    countEl.textContent = `${openAlerts} cảnh báo`;
     card.querySelector('.printer-sub').textContent = [p.model, `cập nhật ${relTime(p.last_seen)}`].filter(Boolean).join(' · ');
 
     const job = card.querySelector('.printer-job');
@@ -317,54 +327,170 @@
 
     const slot = card.querySelector('.vision-slot');
     slot.textContent = '';
-    slot.appendChild(p.last_error ? visionBox({ state: 'warn', text: p.last_error }) : visionBox(vision(latest)));
+    const resting = (status === 'idle' || status === 'offline') && latest
+      && ageSec(latest.captured_at || latest.created_at) > STALE_IMAGE_SEC;
+    let v = vision(latest);
+    if (p.last_error) v = { state: 'warn', text: p.last_error };
+    else if (resting) v = { state: 'none', text: 'Máy không in nên camera tạm nghỉ. Ảnh sẽ tự cập nhật khi bắt đầu in.' };
+    slot.appendChild(visionBox(v));
   }
 
   const SEVERITY = { critical: 'Nghiêm trọng', error: 'Lỗi', warning: 'Cảnh báo', info: 'Thông tin' };
+
+  function openAlertsFor(printerId) {
+    return (state.data.alerts || []).filter((a) => !a.acknowledged && a.printer_id === printerId);
+  }
+  function printerNames() {
+    return new Map((state.data.printers || []).map((p) => [p.printer_id, printerName(p)]));
+  }
+
+  function alertItem(a, names, showPrinter = true) {
+    const li = el('li', 'alert');
+    li.dataset.severity = a.severity || 'warning';
+    li.dataset.ack = String(Boolean(a.acknowledged));
+    li.appendChild(el('span', 'alert-bar'));
+    const main = el('div', 'alert-main');
+    main.appendChild(el('p', 'alert-msg', a.message || 'Cảnh báo'));
+    const source = showPrinter ? (names.get(a.printer_id) || a.printer_id || a.device_id || 'Hệ thống') : '';
+    main.appendChild(el('p', 'alert-meta',
+      [SEVERITY[a.severity] || a.severity, source, `${clock(a.created_at, true)} (${relTime(a.created_at)})`].filter(Boolean).join(' · ')));
+    li.appendChild(main);
+    if (a.acknowledged) {
+      if (a.acked_by) li.appendChild(el('span', 'alert-acked', `Đã xử lý bởi ${a.acked_by}`));
+    } else {
+      const btn = el('button', 'btn btn-sm', 'Đã xử lý');
+      btn.type = 'button';
+      btn.addEventListener('click', async () => {
+        btn.disabled = true;
+        try {
+          await api(`/api/alerts/${encodeURIComponent(a.id)}/ack`, { method: 'POST' });
+          a.acknowledged = 1;
+          a.acked_by = state.tsUser || 'mã quản lý';
+          renderAlerts();
+          renderPrinters();
+          if ($('detail').open) renderDetail();
+          loadEvents(true);
+        } catch (err) {
+          btn.disabled = false;
+          handleError(err);
+        }
+      });
+      li.appendChild(btn);
+    }
+    return li;
+  }
+
+  function renderAlertChips(open) {
+    const root = $('alert-printers');
+    root.textContent = '';
+    const printers = state.data.printers || [];
+    const systemOpen = open.filter((a) => !a.printer_id).length;
+    if (printers.length < 2 && !systemOpen) { state.alertPrinter = ''; return; }
+    const chip = (value, label, n) => {
+      const b = el('button', 'chip');
+      b.type = 'button';
+      b.setAttribute('aria-pressed', String(state.alertPrinter === value));
+      b.appendChild(el('span', '', label));
+      if (n) b.appendChild(el('span', 'chip-count', n));
+      b.addEventListener('click', () => { state.alertPrinter = value; renderAlerts(); });
+      root.appendChild(b);
+    };
+    chip('', 'Tất cả', open.length);
+    printers.forEach((p) => chip(p.printer_id, printerName(p), open.filter((a) => a.printer_id === p.printer_id).length));
+    if (systemOpen || state.alertPrinter === '_system') chip('_system', 'Hệ thống', systemOpen);
+  }
+
   function renderAlerts() {
     const all = state.data.alerts || [];
     const open = all.filter((a) => !a.acknowledged);
-    const list = state.alertFilter === 'open' ? open : all;
     const count = $('alerts-count');
     count.hidden = open.length === 0;
     count.textContent = String(open.length);
+    renderAlertChips(open);
+
+    let list = state.alertFilter === 'open' ? open : all;
+    if (state.alertPrinter === '_system') list = list.filter((a) => !a.printer_id);
+    else if (state.alertPrinter) list = list.filter((a) => a.printer_id === state.alertPrinter);
 
     const root = $('alerts');
     root.textContent = '';
     const empty = $('alerts-empty');
     empty.hidden = list.length > 0;
     empty.textContent = state.alertFilter === 'open' ? 'Không có cảnh báo cần xử lý.' : 'Chưa có cảnh báo nào.';
-    const names = new Map((state.data.printers || []).map((p) => [p.printer_id, printerName(p)]));
+    const names = printerNames();
+    const showPrinter = !state.alertPrinter || state.alertPrinter === '_system';
+    list.slice(0, 50).forEach((a) => root.appendChild(alertItem(a, names, showPrinter)));
+  }
 
-    list.slice(0, 50).forEach((a) => {
-      const li = el('li', 'alert');
-      li.dataset.severity = a.severity || 'warning';
-      li.dataset.ack = String(Boolean(a.acknowledged));
-      li.appendChild(el('span', 'alert-bar'));
-      const main = el('div', 'alert-main');
-      main.appendChild(el('p', 'alert-msg', a.message || 'Cảnh báo'));
-      const source = names.get(a.printer_id) || a.printer_id || a.device_id || '';
-      main.appendChild(el('p', 'alert-meta',
-        [SEVERITY[a.severity] || a.severity, source, `${clock(a.created_at, true)} (${relTime(a.created_at)})`].filter(Boolean).join(' · ')));
-      li.appendChild(main);
-      if (!a.acknowledged) {
-        const btn = el('button', 'btn btn-sm', 'Đã xử lý');
-        btn.type = 'button';
-        btn.addEventListener('click', async () => {
-          btn.disabled = true;
-          try {
-            await api(`/api/alerts/${encodeURIComponent(a.id)}/ack`, { method: 'POST' });
-            a.acknowledged = 1;
-            renderAlerts();
-          } catch (err) {
-            btn.disabled = false;
-            handleError(err);
-          }
-        });
-        li.appendChild(btn);
-      }
-      root.appendChild(li);
+  // ---------------------------------------------------------------------------
+  // Activity log
+  // ---------------------------------------------------------------------------
+  const CATEGORY = { printer: 'Máy in', alert: 'Cảnh báo', notify: 'Thông báo', ai: 'AI', settings: 'Cài đặt', device: 'Thiết bị', system: 'Hệ thống' };
+
+  function eventItem(e, names, compact = false) {
+    const li = el('li', 'event');
+    li.dataset.level = e.level;
+    li.dataset.category = e.category;
+    li.appendChild(el('span', 'event-time', compact ? clock(e.created_at) : clock(e.created_at, true)));
+    li.appendChild(el('span', 'event-dot'));
+    const body = el('div', 'event-msg');
+    body.appendChild(document.createTextNode(e.message));
+    const meta = [CATEGORY[e.category] || e.category];
+    if (!compact && e.printer_id) meta.push(names.get(e.printer_id) || e.printer_id);
+    if (e.actor) meta.push(`bởi ${e.actor}`);
+    body.appendChild(el('span', 'event-meta', meta.join(' · ')));
+    li.appendChild(body);
+    return li;
+  }
+
+  function eventQuery(before) {
+    const q = new URLSearchParams({ limit: '30' });
+    const printer = $('ev-printer').value;
+    const category = $('ev-category').value;
+    if (printer) q.set('printer', printer);
+    if (category) q.set('category', category);
+    if ($('ev-problems').checked) q.set('level', 'problems');
+    if (before) q.set('before', String(before));
+    return `/api/events?${q}`;
+  }
+
+  async function loadEvents(reset) {
+    const ev = state.events;
+    if (ev.loading) return;
+    if (!reset && !ev.next) return;
+    ev.loading = true;
+    try {
+      const data = await (await api(eventQuery(reset ? null : ev.next))).json();
+      ev.items = reset ? data.events : ev.items.concat(data.events);
+      ev.next = data.next;
+      ev.pagedBeyondFirst = !reset;
+      renderEvents();
+    } catch (err) {
+      handleError(err);
+    } finally {
+      ev.loading = false;
+    }
+  }
+
+  function renderEvents() {
+    const root = $('events');
+    root.textContent = '';
+    const names = printerNames();
+    state.events.items.forEach((e) => root.appendChild(eventItem(e, names)));
+    $('events-empty').hidden = state.events.items.length > 0;
+    $('events-more').hidden = !state.events.next;
+  }
+
+  function syncEventPrinterOptions() {
+    const sel = $('ev-printer');
+    const current = sel.value;
+    [...sel.options].slice(2).forEach((o) => o.remove());
+    (state.data.printers || []).forEach((p) => {
+      const o = el('option', '', printerName(p));
+      o.value = p.printer_id;
+      sel.appendChild(o);
     });
+    sel.value = [...sel.options].some((o) => o.value === current) ? current : '';
   }
 
   function renderAnalyses() {
@@ -438,6 +564,18 @@
     if (!dlg.open) dlg.showModal();
   }
 
+  async function loadDetailEvents(printerId) {
+    try {
+      const data = await (await api(`/api/events?printer=${encodeURIComponent(printerId)}&limit=12`)).json();
+      if (state.detailPrinterId !== printerId) return;
+      const root = $('detail-events');
+      root.textContent = '';
+      const names = printerNames();
+      data.events.forEach((e) => root.appendChild(eventItem(e, names, true)));
+      $('detail-events-empty').hidden = data.events.length > 0;
+    } catch { /* non-critical */ }
+  }
+
   function renderDetail() {
     const dlg = $('detail');
     const p = (state.data.printers || []).find((x) => x.printer_id === state.detailPrinterId);
@@ -482,6 +620,14 @@
       ['Cầu nối', p.device_id || '--'],
       ['Cập nhật', relTime(p.last_seen)],
     ].forEach(([k, v]) => { kv.appendChild(el('dt', '', k)); kv.appendChild(el('dd', 'num', v)); });
+
+    const names = printerNames();
+    const dAlerts = $('detail-alerts');
+    dAlerts.textContent = '';
+    const mine = openAlertsFor(p.printer_id);
+    mine.slice(0, 20).forEach((a) => dAlerts.appendChild(alertItem(a, names, false)));
+    $('detail-alerts-empty').hidden = mine.length > 0;
+    loadDetailEvents(p.printer_id);
 
     const thumbs = $('detail-thumbs');
     thumbs.textContent = '';
@@ -713,6 +859,8 @@
       renderPrinters();
       renderAlerts();
       renderAnalyses();
+      syncEventPrinterOptions();
+      if (!state.events.pagedBeyondFirst) loadEvents(true);
       if ($('detail').open) renderDetail();
       pruneImages(new Set(state.data.snapshots.map((s) => s.id)));
     } catch (err) {
@@ -764,6 +912,8 @@
 
   function bind() {
     bindSettings();
+    ['ev-printer', 'ev-category', 'ev-problems'].forEach((id) => $(id).addEventListener('change', () => loadEvents(true)));
+    $('events-more').addEventListener('click', () => loadEvents(false));
     document.querySelectorAll('.seg').forEach((b) => b.addEventListener('click', () => {
       state.alertFilter = b.dataset.filter;
       document.querySelectorAll('.seg').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));

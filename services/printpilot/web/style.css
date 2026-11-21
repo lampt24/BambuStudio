@@ -636,3 +636,89 @@ img { display: block; max-width: 100%; }
   .dialog-settings { width: 100vw; max-width: 100vw; max-height: 100vh; height: 100vh; border-radius: 0; margin: 0; }
   .settings-form { max-height: 100vh; height: 100%; }
 }
+
+/* ---------- Per-printer alerts & activity log ---------- */
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.chips { display: flex; gap: 6px; flex-wrap: wrap; margin: 2px 0 6px; }
+.chips:empty { display: none; }
+.chip {
+  border: 1px solid var(--border);
+  background: transparent;
+  border-radius: 999px;
+  padding: 3px 10px;
+  font-size: 12px;
+  color: var(--text-2);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.chip[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent); color: var(--text); font-weight: 600; }
+.chip .chip-count { font-variant-numeric: tabular-nums; color: var(--danger); font-weight: 650; }
+.chip:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.alert-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 650;
+  color: var(--danger);
+  background: var(--danger-soft);
+  padding: 1px 8px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+.printer-head .printer-titles { display: flex; align-items: center; gap: 8px; min-width: 0; }
+
+.panel-head-wrap { flex-wrap: wrap; }
+.filters { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.select-sm {
+  font: inherit;
+  font-size: 13px;
+  color: var(--text);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 5px 8px;
+}
+.switch-sm { font-size: 13px; color: var(--text-2); }
+.switch-sm input { width: 15px; height: 15px; }
+
+.events { list-style: none; margin: 0; padding: 0; }
+.event {
+  display: grid;
+  grid-template-columns: 92px 10px minmax(0, 1fr);
+  gap: 10px;
+  align-items: baseline;
+  padding: 8px 2px;
+  border-top: 1px solid var(--border);
+  font-size: 13px;
+}
+.event:first-child { border-top: 0; }
+.event-time { color: var(--text-3); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.event-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--idle); align-self: center; }
+.event[data-level="warning"] .event-dot { background: var(--warn); }
+.event[data-level="error"] .event-dot { background: var(--danger); }
+.event[data-category="printer"][data-level="info"] .event-dot { background: var(--info); }
+.event-msg { overflow-wrap: anywhere; }
+.event-meta { display: block; font-size: 12px; color: var(--text-3); margin-top: 1px; }
+.events-compact .event { grid-template-columns: 52px 10px minmax(0, 1fr); padding: 6px 0; }
+.events-more { display: flex; justify-content: center; padding-top: 8px; }
+.events-more:has(button[hidden]) { display: none; }
+.empty-sm { padding: 8px 0; font-size: 13px; }
+.detail-lower {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+  padding: 0 18px 18px;
+}
+.detail-lower .alert { padding: 8px 0; }
+.alert-acked { font-size: 12px; color: var(--text-3); white-space: nowrap; }
+@media (max-width: 900px) {
+  .detail-lower { grid-template-columns: 1fr; }
+}
+@media (max-width: 640px) {
+  .event { grid-template-columns: 70px 10px minmax(0, 1fr); }
+  .detail-lower { padding: 0 14px 16px; }
+}

@@ -1856,5 +1856,69 @@ class TestRetention(unittest.TestCase):
         self.assertFalse(os.path.exists(orphan))
 
 
+class TestActivityLog(ServerTestCase):
+    def _hb(self, printer, status, **extra):
+        data = {"device_id": "redmi", "printer_id": printer, "status": status, "printer_name": printer.upper()}
+        data.update(extra)
+        return _jreq(self._port, "POST", "/api/heartbeat", data, token=DEVICE_TOKEN)[0]
+
+    def _events(self, query=""):
+        return json.loads(_req(self._port, "GET", "/api/events" + query).read())
+
+    def test_print_lifecycle_is_logged_per_printer(self):
+        self._hb("a1", "idle")
+        self._hb("a1", "printing", telemetry={"job_name": "vase"})
+        self._hb("a1", "unknown")                      # telemetry gap: no event
+        self._hb("a1", "printing", telemetry={"job_name": "vase"})
+        self._hb("a1", "idle", telemetry={"gcode_state": "FINISH", "progress": 100, "job_name": "vase"})
+        self._hb("b2", "idle")
+        msgs = [e["message"] for e in self._events("?printer=a1")["events"]]
+        self.assertEqual(msgs, ["A1 hoàn thành bản in «vase»", "A1 bắt đầu in «vase»",
+                                "Phát hiện máy in mới: A1 (qua redmi)"])
+        b2 = self._events("?printer=b2")["events"]
+        self.assertEqual(len(b2), 1)
+
+    def test_ack_records_actor_and_settings_hide_values(self):
+        self._hb("a1", "idle", error="camera timeout")
+        state = json.loads(_req(self._port, "GET", "/api/state").read())
+        alert = next(a for a in state["alerts"] if not a["acknowledged"])
+        _req(self._port, "POST", f"/api/alerts/{alert['id']}/ack", body=b"").read()
+        _jreq(self._port, "POST", "/api/settings", {"telegram_bot_token": "999:SECRET"})
+        events = self._events()["events"]
+        ack = next(e for e in events if e["message"].startswith("Đã xử lý cảnh báo"))
+        self.assertEqual(ack["actor"], "mã quản lý")
+        self.assertEqual(ack["printer_id"], "a1")
+        raw = _req(self._port, "GET", "/api/events").read().decode()
+        self.assertIn("telegram_bot_token", raw)
+        self.assertNotIn("999:SECRET", raw)
+        state = json.loads(_req(self._port, "GET", "/api/state").read())
+        acked = next(a for a in state["alerts"] if a["id"] == alert["id"])
+        self.assertEqual(acked["acked_by"], "mã quản lý")
+
+    def test_filters_and_pagination(self):
+        for i in range(5):
+            self._hb(f"p{i}", "idle")
+        page1 = self._events("?limit=2&category=device")
+        self.assertEqual(len(page1["events"]), 2)
+        page2 = self._events(f"?limit=2&category=device&before={page1['next']}")
+        self.assertEqual(len(page2["events"]), 2)
+        self.assertTrue(all(e["id"] < page1["events"][-1]["id"] for e in page2["events"]))
+        self.assertEqual(_req(self._port, "GET", "/api/events?category=nope").status, 400)
+        self.assertEqual(_req(self._port, "GET", "/api/events", token=DEVICE_TOKEN).status, 401)
+
+    def test_offline_and_reconnect(self):
+        from server import HeartbeatMonitor, open_db
+        self._hb("a1", "idle")
+        conn = open_db(os.path.join(self._tmpdir, "printpilot.db"))
+        conn.execute("UPDATE printers SET last_seen='2000-01-01T00:00:00Z'")
+        conn.commit()
+        HeartbeatMonitor(self._cfg, os.path.join(self._tmpdir, "printpilot.db"))._check(conn)
+        HeartbeatMonitor(self._cfg, os.path.join(self._tmpdir, "printpilot.db"))._check(conn)
+        self._hb("a1", "idle")
+        msgs = [e["message"] for e in self._events("?printer=a1")["events"]]
+        self.assertEqual(msgs[:2], ["A1 đã kết nối lại", "A1 mất kết nối"])
+        self.assertEqual(msgs.count("A1 mất kết nối"), 1)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

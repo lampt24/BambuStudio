@@ -100,11 +100,37 @@ async function main() {
     assert.strictEqual(await page.evaluate(() => window.__xss), undefined);
     assert.ok((await page.textContent('#alerts')).includes('<img src=x'));
 
+    console.log('4b. Alerts are attributed per printer');
+    const second = page.locator('.printer').nth(1);
+    assert.strictEqual((await second.locator('.alert-count').textContent()).trim(), '1 cảnh báo');
+    assert.ok(await first.locator('.alert-count').isHidden());
+    assert.strictEqual(await page.locator('#alert-printers .chip').count(), 3); // all + 2 printers
+    await page.locator('#alert-printers .chip', { hasText: 'A1 trái' }).click();
+    assert.strictEqual(await page.locator('#alerts .alert').count(), 0);
+    await page.locator('#alert-printers .chip', { hasText: 'A1 phải' }).click();
+    assert.strictEqual(await page.locator('#alerts .alert').count(), 1);
+    await page.locator('#alert-printers .chip', { hasText: 'Tất cả' }).click();
+
+    console.log('4c. Activity log lists events with printer filter');
+    await page.waitForSelector('#events .event');
+    assert.ok((await page.textContent('#events')).includes('Phát hiện máy in mới'));
+    await page.selectOption('#ev-printer', 'a1-02');
+    await page.waitForFunction(() => [...document.querySelectorAll('#events .event')].every((e) => !e.textContent.includes('A1 trái')));
+    await page.selectOption('#ev-printer', '');
+
+    console.log('4d. Detail dialog shows that printer\'s alerts and activity');
+    await second.click();
+    await page.waitForFunction(() => document.querySelectorAll('#detail-alerts .alert').length === 1);
+    await page.waitForSelector('#detail-events .event');
+    await page.keyboard.press('Escape');
+
     console.log('5. Ack removes the alert from the open list');
     const before = await page.locator('#alerts .alert').count();
     assert.ok(before >= 1);
     await page.locator('#alerts .alert button').first().click();
     await page.waitForFunction((n) => document.querySelectorAll('#alerts .alert').length === n - 1, before);
+    await page.waitForFunction(() => document.getElementById('events').textContent.includes('Đã xử lý cảnh báo'));
+    assert.ok(await second.locator('.alert-count').isHidden());
 
     console.log('6. Detail dialog opens and closes');
     await first.click();

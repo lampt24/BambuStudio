@@ -347,6 +347,19 @@ CREATE TABLE IF NOT EXISTS printers (
     last_error  TEXT
 );
 
+CREATE TABLE IF NOT EXISTS events (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    created_at  TEXT NOT NULL,
+    level       TEXT NOT NULL,     -- info|warning|error
+    category    TEXT NOT NULL,     -- printer|alert|notify|settings|ai|device|system
+    printer_id  TEXT,
+    actor       TEXT,
+    message     TEXT NOT NULL,
+    data        TEXT               -- JSON object
+);
+CREATE INDEX IF NOT EXISTS idx_events_created ON events(created_at);
+CREATE INDEX IF NOT EXISTS idx_events_printer ON events(printer_id, created_at);
+
 CREATE TABLE IF NOT EXISTS alerts (
     id              TEXT PRIMARY KEY,
     created_at      TEXT NOT NULL,
@@ -382,10 +395,43 @@ def open_db(path: str) -> sqlite3.Connection:
     conn = sqlite3.connect(path, check_same_thread=False)
     conn.row_factory = sqlite3.Row
     conn.executescript(SCHEMA)
-    if "snapshot_id" not in {row[1] for row in conn.execute("PRAGMA table_info(alerts)")}:
-        conn.execute("ALTER TABLE alerts ADD COLUMN snapshot_id TEXT")
+    alert_cols = {row[1] for row in conn.execute("PRAGMA table_info(alerts)")}
+    for col in ("snapshot_id", "acked_by", "acked_at"):
+        if col not in alert_cols:
+            conn.execute(f"ALTER TABLE alerts ADD COLUMN {col} TEXT")
+    printer_cols = {row[1] for row in conn.execute("PRAGMA table_info(printers)")}
+    if "offline" not in printer_cols:
+        conn.execute("ALTER TABLE printers ADD COLUMN offline INTEGER NOT NULL DEFAULT 0")
+    if "job_state" not in printer_cols:  # last definite status, ignoring 'unknown'
+        conn.execute("ALTER TABLE printers ADD COLUMN job_state TEXT")
     conn.commit()
     return conn
+
+
+# ---------------------------------------------------------------------------
+# Activity log (shown in the dashboard)
+# ---------------------------------------------------------------------------
+
+EVENT_CATEGORIES = {"printer", "alert", "notify", "settings", "ai", "device", "system"}
+EVENT_RETENTION_SECS = 30 * 86400
+
+
+def log_event(conn: sqlite3.Connection, category: str, message: str, level: str = "info",
+              printer_id: str | None = None, actor: str | None = None,
+              data: dict | None = None, commit: bool = True) -> None:
+    """Record an activity event. Never pass secrets in message or data."""
+    try:
+        conn.execute(
+            "INSERT INTO events (created_at, level, category, printer_id, actor, message, data) VALUES (?,?,?,?,?,?,?)",
+            (_now_iso(), level, category, printer_id, actor, message[:1000],
+             json.dumps(data, ensure_ascii=False, default=str) if data else None),
+        )
+        if commit:
+            conn.commit()
+    except sqlite3.Error:
+        log.exception("Could not record event")
+    log.log(logging.WARNING if level in ("warning", "error") else logging.INFO,
+            "event %s/%s%s: %s", category, level, f" [{printer_id}]" if printer_id else "", message)
 
 
 # ---------------------------------------------------------------------------
@@ -1020,6 +1066,9 @@ def upsert_alert(conn: sqlite3.Connection, source: str, severity: str,
         (alert_id, now, device_id, printer_id, snapshot_id, source, severity, message, dk, now),
     )
     conn.commit()
+    log_event(conn, "alert", f"Cảnh báo mới: {message}",
+              "error" if severity in ("critical", "error") else "warning",
+              printer_id, data={"alert_id": alert_id, "source": source, "severity": severity})
     return alert_id
 
 
@@ -1035,13 +1084,17 @@ def notifications_configured(cfg: dict) -> bool:
 _SEVERITY_ICON = {"critical": "\U0001F6A8", "error": "\u274C", "warning": "\u26A0\uFE0F"}
 
 
-def format_telegram_text(alert: sqlite3.Row) -> str:
-    icon = _SEVERITY_ICON.get(str(alert["severity"]).lower(), "\u2139\uFE0F")
-    lines = [f"{icon} PrintPilot: {str(alert['severity']).upper()}",
-             str(alert["message"] or "")[:3000]]
-    source = alert["printer_id"] or alert["device_id"]
-    if source:
-        lines.append(f"Nguồn: {source}")
+_SEVERITY_LABEL = {"critical": "NGHIÊM TRỌNG", "error": "LỖI", "warning": "CẢNH BÁO", "info": "THÔNG TIN"}
+
+
+def format_telegram_text(alert: sqlite3.Row, printer_name: str | None = None) -> str:
+    sev = str(alert["severity"]).lower()
+    icon = _SEVERITY_ICON.get(sev, "\u2139\uFE0F")
+    where = printer_name or alert["printer_id"] or alert["device_id"] or ""
+    title = f"{icon} {_SEVERITY_LABEL.get(sev, sev.upper())}" + (f" · {where}" if where else "")
+    lines = [title, str(alert["message"] or "")[:3000]]
+    if alert["device_id"] and alert["device_id"] != where:
+        lines.append(f"Cầu nối: {alert['device_id']}")
     lines.append(f"Lúc: {alert['created_at']}")
     return "\n".join(lines)
 
@@ -1087,11 +1140,11 @@ def telegram_recent_chats(token: str) -> tuple[bool, Any]:
     return True, list(chats.values())
 
 
-def send_telegram(cfg: dict, alert: sqlite3.Row) -> bool:
+def send_telegram(cfg: dict, alert: sqlite3.Row, printer_name: str | None = None) -> bool:
     """Send alert text via Telegram Bot API. Never logs the bot token."""
     token = str(cfg.get("telegram_bot_token", "")).strip()
     chat_id = str(cfg.get("telegram_chat_id", "")).strip()
-    payload = json.dumps({"chat_id": chat_id, "text": format_telegram_text(alert),
+    payload = json.dumps({"chat_id": chat_id, "text": format_telegram_text(alert, printer_name),
                           "disable_web_page_preview": True}).encode()
     conn_h = None
     try:
@@ -1120,9 +1173,12 @@ def send_webhook(cfg: dict, alert: sqlite3.Row, conn: sqlite3.Connection) -> Non
     Updates DB on success/failure."""
     if not notifications_configured(cfg):
         return
+    name_row = conn.execute("SELECT name FROM printers WHERE printer_id=?",
+                            (alert["printer_id"],)).fetchone() if alert["printer_id"] else None
+    printer_name = name_row["name"] if name_row and name_row["name"] else None
     url = cfg.get("webhook_url", "").strip()
     if not url:
-        success = send_telegram(cfg, alert)
+        success = send_telegram(cfg, alert, printer_name)
         _record_delivery(conn, alert, success)
         return
     parsed = urllib.parse.urlparse(url)
@@ -1170,7 +1226,7 @@ def send_webhook(cfg: dict, alert: sqlite3.Row, conn: sqlite3.Connection) -> Non
             conn_h.close()
 
     if telegram_configured(cfg):
-        success = send_telegram(cfg, alert) and success
+        success = send_telegram(cfg, alert, printer_name) and success
     _record_delivery(conn, alert, success)
 
 
@@ -1179,8 +1235,13 @@ def _record_delivery(conn: sqlite3.Connection, alert: sqlite3.Row, success: bool
         conn.execute(
             "UPDATE alerts SET webhook_sent=1 WHERE id=?", (alert["id"],)
         )
+        log_event(conn, "notify", "Đã gửi cảnh báo ra ngoài (Telegram/webhook)",
+                  printer_id=alert["printer_id"], data={"alert_id": alert["id"]}, commit=False)
     else:
         retries = alert["webhook_retries"] + 1
+        if retries in (1, 5, 10):  # first failure and a couple of reminders, not every retry
+            log_event(conn, "notify", f"Gửi cảnh báo thất bại (lần {retries}), sẽ thử lại",
+                      "warning", alert["printer_id"], data={"alert_id": alert["id"]}, commit=False)
         # Exponential backoff: 2^retries * 60s, max 1h
         delay = min(2 ** retries * 60, 3600)
         next_at = time.strftime(
@@ -1375,7 +1436,16 @@ class HeartbeatMonitor(threading.Thread):
             self._stop.wait(60)
 
     def _check(self, conn: sqlite3.Connection) -> None:
-        prune_old_data(conn, self.cfg, self.cfg.get("_data_dir"))
+        removed = prune_old_data(conn, self.cfg, self.cfg.get("_data_dir"))
+        if removed["snapshots"] or removed["orphans"] or removed["analyses"]:
+            log_event(conn, "system", f"Tự dọn dữ liệu: {removed['snapshots'] + removed['orphans']} ảnh, "
+                                      f"{removed['analyses']} lượt phân tích", data=removed)
+        cutoff_iso = _iso_ago(HEARTBEAT_STALE_SECS)
+        for prow in conn.execute(
+                "SELECT printer_id, name FROM printers WHERE last_seen < ? AND offline=0", (cutoff_iso,)).fetchall():
+            conn.execute("UPDATE printers SET offline=1 WHERE printer_id=?", (prow["printer_id"],))
+            log_event(conn, "printer", f"{prow['name'] or prow['printer_id']} mất kết nối", "warning",
+                      prow["printer_id"])
         stale_cutoff = time.strftime(
             "%Y-%m-%dT%H:%M:%SZ",
             time.gmtime(time.time() - HEARTBEAT_STALE_SECS),
@@ -1446,6 +1516,7 @@ def prune_old_data(conn: sqlite3.Connection, cfg: dict | None = None,
             conn.execute(f"DELETE FROM {table} WHERE id=?", (row["id"],))
             removed[table] += 1
     conn.execute("DELETE FROM alerts WHERE created_at < ?", (cutoff,))
+    conn.execute("DELETE FROM events WHERE created_at < ?", (_iso_ago(EVENT_RETENTION_SECS),))
     conn.commit()
     # Image files left behind without a database row (crash mid-write, manual edits)
     if data_dir:
@@ -1502,6 +1573,12 @@ class PrintPilotHandler(http.server.BaseHTTPRequestHandler):
         if self._check_token(self.cfg["manager_token"]):
             return True
         return self._tailscale_user() is not None
+
+    def _actor(self) -> str:
+        if self._check_token(self.cfg["manager_token"]):
+            return "mã quản lý"
+        ident = self._tailscale_user()
+        return ident["login"] if ident else "không rõ"
 
     def _client_ip(self) -> str:
         """Peer IP; behind the local reverse proxy (Caddy), the last X-Forwarded-For hop."""
@@ -1622,6 +1699,8 @@ class PrintPilotHandler(http.server.BaseHTTPRequestHandler):
                 self._require_manager(self._handle_state)
             elif path == "/api/settings":
                 self._require_manager(self._handle_settings_get)
+            elif path == "/api/events":
+                self._require_manager(self._handle_events)
             elif path.startswith("/api/images/"):
                 self._require_manager(lambda: self._handle_image(path))
             elif path.startswith("/"):
@@ -1673,6 +1752,53 @@ class PrintPilotHandler(http.server.BaseHTTPRequestHandler):
 
     # --- Endpoint handlers ----------------------------------------------
 
+    # --- Activity log ---------------------------------------------------
+
+    def _handle_events(self) -> None:
+        q = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
+        where, params = [], []
+        printer = (q.get("printer") or [""])[0]
+        if printer == "_system":
+            where.append("printer_id IS NULL")
+        elif printer:
+            where.append("printer_id = ?")
+            params.append(printer)
+        category = (q.get("category") or [""])[0]
+        if category:
+            if category not in EVENT_CATEGORIES:
+                self._send_error(400, "Unknown category")
+                return
+            where.append("category = ?")
+            params.append(category)
+        if (q.get("level") or [""])[0] == "problems":
+            where.append("level IN ('warning','error')")
+        before = (q.get("before") or [""])[0]
+        if before:
+            try:
+                params.append(int(before))
+                where.append("id < ?")
+            except ValueError:
+                self._send_error(400, "Invalid cursor")
+                return
+        try:
+            limit = max(1, min(200, int((q.get("limit") or ["50"])[0])))
+        except ValueError:
+            limit = 50
+        sql = ("SELECT id, created_at, level, category, printer_id, actor, message, data FROM events"
+               + (" WHERE " + " AND ".join(where) if where else "")
+               + " ORDER BY id DESC LIMIT ?")
+        rows = self.db.execute(sql, (*params, limit + 1)).fetchall()
+        items = []
+        for row in rows[:limit]:
+            item = dict(row)
+            try:
+                item["data"] = json.loads(item["data"]) if item["data"] else None
+            except json.JSONDecodeError:
+                item["data"] = None
+            items.append(item)
+        self._send_json(200, {"events": items,
+                              "next": items[-1]["id"] if len(rows) > limit else None})
+
     # --- Settings -------------------------------------------------------
 
     def _handle_settings_get(self) -> None:
@@ -1693,7 +1819,8 @@ class PrintPilotHandler(http.server.BaseHTTPRequestHandler):
             log.exception("Could not persist settings")
             self._send_error(500, "Không lưu được cấu hình")
             return
-        log.info("Settings updated: %s", ", ".join(sorted(patch)))
+        log_event(self.db, "settings", "Cập nhật cài đặt: " + ", ".join(sorted(patch)),
+                  actor=self._actor(), data={"keys": sorted(patch)})
         self._send_json(200, {"settings": public_settings(self.cfg)})
 
     def _telegram_token(self, data: dict | None) -> str:
@@ -1768,6 +1895,8 @@ class PrintPilotHandler(http.server.BaseHTTPRequestHandler):
         if not ok:
             return
         removed = prune_old_data(self.db, self.cfg, self.data_dir)
+        log_event(self.db, "system", f"Dọn dữ liệu thủ công: {removed['snapshots'] + removed['orphans']} ảnh",
+                  actor=self._actor(), data=removed)
         self._send_json(200, {"removed": removed, "storage": storage_stats(self.db, self.data_dir)})
 
     def _handle_whoami(self) -> None:
@@ -1797,8 +1926,8 @@ class PrintPilotHandler(http.server.BaseHTTPRequestHandler):
         ).fetchall()
         alerts = db.execute(
             """SELECT id, created_at, source, severity, message,
-                      device_id, printer_id, snapshot_id, acknowledged
-               FROM alerts ORDER BY created_at DESC LIMIT 100"""
+                      device_id, printer_id, snapshot_id, acknowledged, acked_by, acked_at
+               FROM alerts ORDER BY created_at DESC LIMIT 200"""
         ).fetchall()
         devices = db.execute(
             "SELECT device_id, printer_id, last_seen, last_status, last_error FROM devices"
@@ -1947,6 +2076,8 @@ class PrintPilotHandler(http.server.BaseHTTPRequestHandler):
                  "[]", "[]", "{}", file_path, objective, trigger),
             )
             self.db.commit()
+            log_event(self.db, "ai", f"Phân tích AI lỗi cho {filename}: {str(exc)[:200]}", "error",
+                      data={"analysis_id": analysis_id, "trigger": trigger})
             self._send_json(200, {
                 "id": analysis_id,
                 "status": "error",
@@ -1969,11 +2100,13 @@ class PrintPilotHandler(http.server.BaseHTTPRequestHandler):
                    (id, created_at, filename, status, summary, changes, warnings,
                     model_info, file_path, objective, trigger)
                    VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
-                (analysis_id, now, filename, "error", err_msg,
+                (analysis_id, now, filename, "error", err_msg[:2000],
                  "[]", "[]", json.dumps(ai_result.get("model", {})),
                  file_path, objective, trigger),
             )
             self.db.commit()
+            log_event(self.db, "ai", f"AI trả về đề xuất không hợp lệ cho {filename}", "error",
+                      data={"analysis_id": analysis_id, "trigger": trigger})
             self._send_json(200, {
                 "id": analysis_id,
                 "status": "error",
@@ -1998,6 +2131,8 @@ class PrintPilotHandler(http.server.BaseHTTPRequestHandler):
              file_path, objective, trigger),
         )
         self.db.commit()
+        log_event(self.db, "ai", f"AI đề xuất {len(validated_changes)} thay đổi cho {filename}",
+                  data={"analysis_id": analysis_id, "trigger": trigger, "objective": objective})
 
         self._send_json(200, {
             "id": analysis_id,
@@ -2166,7 +2301,7 @@ class PrintPilotHandler(http.server.BaseHTTPRequestHandler):
             (device_id, printer_id, now, status, error),
         )
         prev = self.db.execute(
-            "SELECT telemetry, status FROM printers WHERE printer_id=?", (printer_id,)
+            "SELECT telemetry, status, offline, job_state, name FROM printers WHERE printer_id=?", (printer_id,)
         ).fetchone()
         if not telemetry and prev and prev["telemetry"]:
             # Keep last known numbers on camera-only heartbeats; status says if fresh
@@ -2183,10 +2318,14 @@ class PrintPilotHandler(http.server.BaseHTTPRequestHandler):
                  last_seen=excluded.last_seen,
                  status=excluded.status,
                  telemetry=excluded.telemetry,
-                 last_error=excluded.last_error""",
+                 last_error=excluded.last_error,
+                 offline=0""",
             (printer_id, device_id, name[:80], model[:40], now, status, telemetry_json, error),
         )
+        if status != "unknown":
+            self.db.execute("UPDATE printers SET job_state=? WHERE printer_id=?", (status, printer_id))
         self.db.commit()
+        self._log_printer_transition(prev, printer_id, name, status, telemetry, device_id)
 
         # Printer-reported failure (MQTT print_error / FAILED state)
         print_error = telemetry.get("print_error")
@@ -2226,6 +2365,34 @@ class PrintPilotHandler(http.server.BaseHTTPRequestHandler):
                     send_webhook(self.cfg, alert_row, self.db)
 
         self._send_json(200, {"status": "ok", "policy": bridge_policy(self.cfg)})
+
+    def _log_printer_transition(self, prev, printer_id: str, name: str, status: str,
+                                telemetry: dict, device_id: str) -> None:
+        label = name or (prev["name"] if prev and prev["name"] else printer_id)
+        job = telemetry.get("job_name")
+        job_txt = f" «{job}»" if job else ""
+        if prev is None:
+            log_event(self.db, "device", f"Phát hiện máy in mới: {label} (qua {device_id})",
+                      printer_id=printer_id)
+            return
+        if prev["offline"]:
+            log_event(self.db, "printer", f"{label} đã kết nối lại", printer_id=printer_id)
+        before = prev["job_state"]
+        if status == "unknown" or status == before:
+            return
+        if status == "printing":
+            msg = f"{label} tiếp tục in{job_txt}" if before == "paused" else f"{label} bắt đầu in{job_txt}"
+            log_event(self.db, "printer", msg, printer_id=printer_id, data={"job": job})
+        elif status == "paused":
+            log_event(self.db, "printer", f"{label} tạm dừng in{job_txt}", "warning", printer_id)
+        elif status == "error":
+            code = telemetry.get("print_error")
+            log_event(self.db, "printer", f"{label} gặp lỗi khi in{job_txt}" + (f" (mã {code})" if code else ""),
+                      "error", printer_id, data={"print_error": code})
+        elif status == "idle" and before in ("printing", "paused", "error"):
+            done = telemetry.get("gcode_state") == "FINISH" or (telemetry.get("progress") or 0) >= 100
+            log_event(self.db, "printer", f"{label} {'hoàn thành' if done else 'đã dừng'} bản in{job_txt}",
+                      printer_id=printer_id, data={"progress": telemetry.get("progress"), "job": job})
 
     def _handle_image(self, path: str) -> None:
         m = re.match(r"^/api/images/([a-zA-Z0-9_-]+)$", path)
@@ -2275,15 +2442,20 @@ class PrintPilotHandler(http.server.BaseHTTPRequestHandler):
             return
         alert_id = m.group(1)
         row = self.db.execute(
-            "SELECT id FROM alerts WHERE id=?", (alert_id,)
+            "SELECT id, message, printer_id, acknowledged FROM alerts WHERE id=?", (alert_id,)
         ).fetchone()
         if not row:
             self._send_error(404, "Alert not found")
             return
+        actor = self._actor()
         self.db.execute(
-            "UPDATE alerts SET acknowledged=1 WHERE id=?", (alert_id,)
+            "UPDATE alerts SET acknowledged=1, acked_by=?, acked_at=? WHERE id=?",
+            (actor, _now_iso(), alert_id),
         )
         self.db.commit()
+        if not row["acknowledged"]:
+            log_event(self.db, "alert", f"Đã xử lý cảnh báo: {row['message']}",
+                      printer_id=row["printer_id"], actor=actor, data={"alert_id": alert_id})
         self._send_json(200, {"status": "acknowledged"})
 
     def _handle_static(self, path: str) -> None:
@@ -2373,6 +2545,12 @@ def run_server(cfg: dict) -> None:
     os.makedirs(os.path.join(data_dir, "snapshots"), exist_ok=True)
 
     cfg["_data_dir"] = data_dir
+    from logging.handlers import RotatingFileHandler
+    file_handler = RotatingFileHandler(os.path.join(data_dir, "printpilot.log"),
+                                       maxBytes=5 * 1024 * 1024, backupCount=3, encoding="utf-8")
+    file_handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s %(message)s",
+                                                "%Y-%m-%dT%H:%M:%SZ"))
+    logging.getLogger().addHandler(file_handler)
     db_path = os.path.join(data_dir, "printpilot.db")
     conn = open_db(db_path)
     conn.close()
@@ -2390,6 +2568,9 @@ def run_server(cfg: dict) -> None:
     port = cfg["port"]
     server = BoundedHTTPServer((host, port), handler)
     log.info("PrintPilot server listening on http://%s:%d", host, port)
+    start_conn = open_db(db_path)
+    log_event(start_conn, "system", "Máy chủ PrintPilot khởi động")
+    start_conn.close()
     try:
         server.serve_forever()
     except KeyboardInterrupt:

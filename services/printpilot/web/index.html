@@ -56,6 +56,7 @@
             <button type="button" class="seg" data-filter="all" aria-pressed="false">Tất cả</button>
           </div>
         </div>
+        <div id="alert-printers" class="chips" role="group" aria-label="Lọc cảnh báo theo máy in"></div>
         <ul id="alerts" class="list"></ul>
         <p id="alerts-empty" class="empty" hidden>Không có cảnh báo cần xử lý.</p>
       </section>
@@ -68,6 +69,34 @@
         <p id="analyses-empty" class="empty" hidden>Chưa có lượt phân tích. Bấm <b>AI auto setting</b> hoặc gửi in từ Bambu Studio (bản PrintPilot) để AI đề xuất thông số.</p>
       </section>
     </div>
+
+    <section class="panel" aria-labelledby="h-events">
+      <div class="panel-head panel-head-wrap">
+        <h2 id="h-events" class="panel-title">Nhật ký hoạt động</h2>
+        <div class="filters">
+          <label class="sr-only" for="ev-printer">Máy in</label>
+          <select id="ev-printer" class="select-sm">
+            <option value="">Tất cả máy in</option>
+            <option value="_system">Hệ thống</option>
+          </select>
+          <label class="sr-only" for="ev-category">Loại</label>
+          <select id="ev-category" class="select-sm">
+            <option value="">Mọi loại</option>
+            <option value="printer">Máy in</option>
+            <option value="alert">Cảnh báo</option>
+            <option value="notify">Thông báo</option>
+            <option value="ai">AI</option>
+            <option value="settings">Cài đặt</option>
+            <option value="device">Thiết bị</option>
+            <option value="system">Hệ thống</option>
+          </select>
+          <label class="switch switch-sm"><input id="ev-problems" type="checkbox"><span>Chỉ sự cố</span></label>
+        </div>
+      </div>
+      <ol id="events" class="events"></ol>
+      <p id="events-empty" class="empty" hidden>Chưa có hoạt động nào.</p>
+      <div class="events-more"><button id="events-more" class="btn btn-sm" type="button" hidden>Xem thêm</button></div>
+    </section>
   </main>
 
   <!-- Printer detail -->
@@ -94,6 +123,18 @@
     <div class="detail-history">
       <h3 class="mini-title">Lịch sử ảnh</h3>
       <div id="detail-thumbs" class="thumbs" role="listbox" aria-label="Ảnh trước đó"></div>
+    </div>
+    <div class="detail-lower">
+      <div>
+        <h3 class="mini-title">Cảnh báo của máy này</h3>
+        <ul id="detail-alerts" class="list"></ul>
+        <p id="detail-alerts-empty" class="empty empty-sm" hidden>Không có cảnh báo cần xử lý.</p>
+      </div>
+      <div>
+        <h3 class="mini-title">Hoạt động gần đây</h3>
+        <ol id="detail-events" class="events events-compact"></ol>
+        <p id="detail-events-empty" class="empty empty-sm" hidden>Chưa có hoạt động.</p>
+      </div>
     </div>
   </dialog>
 
