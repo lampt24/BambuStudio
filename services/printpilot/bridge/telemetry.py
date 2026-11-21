@@ -2,8 +2,11 @@
 
 Works while the printer stays in cloud mode (LAN Only Mode is not needed):
 the local broker on port 8883 accepts user ``bblp`` + the access code shown on
-the printer screen. We only subscribe to ``device/<serial>/report`` and send
-the ``pushall`` read request; no print-control commands are ever published.
+the printer screen. We subscribe to ``device/<serial>/report`` and send the
+``pushall`` read request.
+
+Control commands (pause/resume/stop, light, speed) are published only when
+the PrintPilot server queues them on a manager's request.
 
 Pure standard library (minimal MQTT 3.1.1) so it runs on Termux without pip.
 """
@@ -156,7 +159,50 @@ def normalize(report: Dict[str, Any]) -> Dict[str, Any]:
     name = report.get("subtask_name")
     if isinstance(name, str) and name:
         out["job_name"] = name[:120]
+    lights = report.get("lights_report")
+    if isinstance(lights, list):
+        for item in lights:
+            if isinstance(item, dict) and item.get("node") == "chamber_light" and item.get("mode") in ("on", "off"):
+                out["light"] = item["mode"]
+    speed = _num(report.get("spd_lvl"))
+    if speed is not None and 1 <= speed <= 4:
+        out["speed_level"] = int(speed)
     return out
+
+
+SUPPORTED_COMMANDS = {"pause", "resume", "stop", "light", "speed"}
+
+
+def command_payload(command: str, params: Dict[str, Any], seq: str) -> Dict[str, Any]:
+    """MQTT request body for a whitelisted control command."""
+    if command in ("pause", "resume", "stop"):
+        return {"print": {"sequence_id": seq, "command": command, "param": ""}}
+    if command == "light":
+        mode = params.get("mode")
+        if mode not in ("on", "off"):
+            raise ValueError("invalid light mode")
+        return {"system": {"sequence_id": seq, "command": "ledctrl", "led_node": "chamber_light",
+                           "led_mode": mode, "led_on_time": 500, "led_off_time": 500,
+                           "loop_times": 0, "interval_time": 0}}
+    if command == "speed":
+        level = params.get("level")
+        if isinstance(level, bool) or level not in (1, 2, 3, 4):
+            raise ValueError("invalid speed level")
+        return {"print": {"sequence_id": seq, "command": "print_speed", "param": str(level)}}
+    raise ValueError(f"unsupported command {command!r}")
+
+
+def interpret_reply(reply: Dict[str, Any]) -> tuple[bool, str]:
+    result = str(reply.get("result") or "").lower()
+    err = reply.get("err_code")
+    if result == "success" and not err:
+        return True, "success"
+    if result in ("fail", "failed") or err:
+        reason = reply.get("reason")
+        detail = reason if reason and reason != "success" else ""
+        code = f"mã {err}" if err else ""
+        return False, " ".join(x for x in (detail, code) if x) or "máy in từ chối"
+    return True, str(reply.get("reason") or "đã nhận")
 
 
 def status_from(telemetry: Dict[str, Any]) -> str:
@@ -216,6 +262,9 @@ class TelemetryClient:
         self._stop = threading.Event()
         self._thread: Optional[threading.Thread] = None
         self.last_error: Optional[str] = None
+        self._sock = None
+        self._send_lock = threading.Lock()
+        self._waiters: Dict[str, Dict[str, Any]] = {}  # sequence_id -> {"event", "reply"}
 
     # -- public -----------------------------------------------------------
     def start(self) -> None:
@@ -235,11 +284,44 @@ class TelemetryClient:
             return normalize(self._raw)
 
     # -- internals ----------------------------------------------------------
+    def send_command(self, command: str, params: Dict[str, Any], timeout: float = 10.0) -> tuple[bool, str]:
+        """Publish a whitelisted command and wait for the printer's reply."""
+        if command not in SUPPORTED_COMMANDS:
+            return False, "lệnh không được hỗ trợ"
+        seq = str(int(time.time() * 1000) % 10**9)
+        try:
+            payload = command_payload(command, params, seq)
+        except ValueError as exc:
+            return False, str(exc)
+        waiter = {"event": threading.Event(), "reply": None}
+        self._waiters[seq] = waiter
+        try:
+            with self._send_lock:
+                sock = self._sock
+                if sock is None:
+                    return False, "cầu nối chưa kết nối MQTT tới máy in"
+                sock.sendall(build_publish(f"device/{self.serial}/request", json.dumps(payload).encode()))
+            if not waiter["event"].wait(timeout):
+                return False, "máy in không phản hồi lệnh"
+            return interpret_reply(waiter["reply"] or {})
+        except OSError as exc:
+            return False, f"lỗi gửi lệnh: {exc}"
+        finally:
+            self._waiters.pop(seq, None)
+
     def merge(self, payload: bytes) -> None:
         try:
             data = json.loads(payload)
         except ValueError:
             return
+        if isinstance(data, dict) and self._waiters:
+            for ns in ("print", "system"):
+                body = data.get(ns)
+                if isinstance(body, dict):
+                    waiter = self._waiters.get(str(body.get("sequence_id", "")))
+                    if waiter is not None:
+                        waiter["reply"] = body
+                        waiter["event"].set()
         report = data.get("print") if isinstance(data, dict) else None
         if not isinstance(report, dict):
             return
@@ -287,6 +369,8 @@ class TelemetryClient:
             try:
                 sock = self._connect()
                 sock.settimeout(KEEPALIVE / 2)
+                with self._send_lock:
+                    self._sock = sock
                 self._pushall(sock)
                 last_push = time.monotonic()
                 self.last_error = None
@@ -296,18 +380,22 @@ class TelemetryClient:
                     try:
                         first, body = read_packet(sock)
                     except (socket.timeout, TimeoutError):
-                        sock.sendall(PINGREQ)
+                        with self._send_lock:
+                            sock.sendall(PINGREQ)
                         continue
                     if first >> 4 == 3:
                         _topic, payload = parse_publish(first, body)
                         self.merge(payload)
                     if time.monotonic() - last_push > PUSHALL_INTERVAL:
-                        self._pushall(sock)
+                        with self._send_lock:
+                            self._pushall(sock)
                         last_push = time.monotonic()
             except (OSError, TelemetryError, ssl.SSLError, struct.error) as exc:
                 self.last_error = str(exc)[:200]
                 logger.warning("Telemetry %s: %s (retry in %.0fs)", self.host, self.last_error, backoff)
             finally:
+                with self._send_lock:
+                    self._sock = None
                 if sock is not None:
                     try:
                         sock.close()

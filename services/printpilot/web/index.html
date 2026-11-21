@@ -116,6 +116,24 @@
         <figcaption id="detail-caption"></figcaption>
       </figure>
       <aside class="detail-side">
+        <section class="controls" aria-labelledby="h-controls">
+          <h3 id="h-controls" class="mini-title">Điều khiển</h3>
+          <div class="ctl-row">
+            <button type="button" class="btn btn-sm" data-cmd="pause">Tạm dừng</button>
+            <button type="button" class="btn btn-sm" data-cmd="resume">Tiếp tục</button>
+            <button type="button" class="btn btn-sm btn-danger" data-cmd="stop">Dừng in</button>
+          </div>
+          <div class="ctl-row">
+            <button type="button" class="btn btn-sm" data-cmd="light" id="ctl-light">Bật đèn</button>
+          </div>
+          <div class="segmented segmented-full" role="group" aria-label="Tốc độ in">
+            <button type="button" class="seg" data-cmd="speed" data-level="1">Êm</button>
+            <button type="button" class="seg" data-cmd="speed" data-level="2">Chuẩn</button>
+            <button type="button" class="seg" data-cmd="speed" data-level="3">Thể thao</button>
+            <button type="button" class="seg" data-cmd="speed" data-level="4">Siêu tốc</button>
+          </div>
+          <p id="ctl-status" class="action-result" role="status"></p>
+        </section>
         <div id="detail-vision" class="vision"></div>
         <dl id="detail-metrics" class="kv"></dl>
       </aside>

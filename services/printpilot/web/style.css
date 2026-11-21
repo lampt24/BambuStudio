@@ -722,3 +722,24 @@ img { display: block; max-width: 100%; }
   .event { grid-template-columns: 70px 10px minmax(0, 1fr); }
   .detail-lower { padding: 0 14px 16px; }
 }
+
+/* ---------- Printer controls ---------- */
+.controls {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+.controls .mini-title { margin-bottom: 0; }
+.ctl-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.ctl-row .btn { flex: 1; }
+.btn-danger { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 35%, transparent); }
+.btn-danger:hover:not(:disabled) { background: var(--danger-soft); }
+.segmented-full { display: flex; width: 100%; }
+.segmented-full .seg { flex: 1; padding: 5px 4px; font-size: 12px; }
+.seg:disabled { opacity: 0.45; cursor: default; }
+.controls .action-result:empty { display: none; }
+.ctl-row .btn { white-space: nowrap; padding-left: 8px; padding-right: 8px; }
+.controls .btn:disabled, .controls .seg:disabled { opacity: 0.38; }

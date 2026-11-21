@@ -85,8 +85,8 @@ VALID_STATUSES   = {"printing", "idle", "paused", "error", "unknown"}
 # Printer telemetry accepted from the bridge (MQTT read-only); anything else is dropped
 _TELEMETRY_NUMERIC = {"nozzle_temp", "bed_temp", "nozzle_target", "bed_target", "progress",
                       "current_layer", "total_layers", "remaining_min", "fan_speed",
-                      "print_error", "frame_size", "itrack"}
-_TELEMETRY_TEXT = {"gcode_state": 32, "job_name": 120}
+                      "print_error", "frame_size", "itrack", "speed_level"}
+_TELEMETRY_TEXT = {"gcode_state": 32, "job_name": 120, "light": 8}
 
 
 def clean_telemetry(raw: Any) -> dict:
@@ -347,6 +347,20 @@ CREATE TABLE IF NOT EXISTS printers (
     last_error  TEXT
 );
 
+CREATE TABLE IF NOT EXISTS printer_commands (
+    id          TEXT PRIMARY KEY,
+    created_at  TEXT NOT NULL,
+    updated_at  TEXT NOT NULL,
+    printer_id  TEXT NOT NULL,
+    device_id   TEXT,
+    command     TEXT NOT NULL,
+    params      TEXT,              -- JSON object
+    status      TEXT NOT NULL,     -- pending|sent|done|failed|expired
+    actor       TEXT,
+    result      TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_cmd_pending ON printer_commands(status, device_id);
+
 CREATE TABLE IF NOT EXISTS events (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
     created_at  TEXT NOT NULL,
@@ -406,6 +420,59 @@ def open_db(path: str) -> sqlite3.Connection:
         conn.execute("ALTER TABLE printers ADD COLUMN job_state TEXT")
     conn.commit()
     return conn
+
+
+# ---------------------------------------------------------------------------
+# Printer control (queued here, executed by the LAN bridge over MQTT)
+# ---------------------------------------------------------------------------
+
+COMMAND_TTL_SECS = 30
+SPEED_LEVELS = {1: "Êm", 2: "Chuẩn", 3: "Thể thao", 4: "Siêu tốc"}
+# command -> statuses in which it is allowed (None = any non-offline state)
+COMMAND_RULES: dict[str, set[str] | None] = {
+    "pause": {"printing"},
+    "resume": {"paused"},
+    "stop": {"printing", "paused", "error"},
+    "light": None,
+    "speed": {"printing", "paused"},
+}
+
+
+def describe_command(command: str, params: dict) -> str:
+    if command == "pause":
+        return "tạm dừng in"
+    if command == "resume":
+        return "tiếp tục in"
+    if command == "stop":
+        return "dừng in"
+    if command == "light":
+        return "bật đèn" if params.get("mode") == "on" else "tắt đèn"
+    if command == "speed":
+        return f"đổi tốc độ sang {SPEED_LEVELS.get(params.get('level'), params.get('level'))}"
+    return command
+
+
+def validate_command(command: Any, params: Any, printer_status: str) -> dict:
+    """Returns cleaned params; raises ValueError with a user-facing message."""
+    if command not in COMMAND_RULES:
+        raise ValueError("Lệnh không được hỗ trợ")
+    params = params if isinstance(params, dict) else {}
+    clean: dict[str, Any] = {}
+    if command == "light":
+        if params.get("mode") not in ("on", "off"):
+            raise ValueError("Chế độ đèn phải là on hoặc off")
+        clean["mode"] = params["mode"]
+    elif command == "speed":
+        level = params.get("level")
+        if isinstance(level, bool) or level not in SPEED_LEVELS:
+            raise ValueError("Mức tốc độ phải từ 1 đến 4")
+        clean["level"] = level
+    allowed = COMMAND_RULES[command]
+    if printer_status == "offline":
+        raise ValueError("Máy in đang mất kết nối")
+    if allowed is not None and printer_status not in allowed:
+        raise ValueError(f"Không thể {describe_command(command, clean)} khi máy đang ở trạng thái này")
+    return clean
 
 
 # ---------------------------------------------------------------------------
@@ -1517,6 +1584,7 @@ def prune_old_data(conn: sqlite3.Connection, cfg: dict | None = None,
             removed[table] += 1
     conn.execute("DELETE FROM alerts WHERE created_at < ?", (cutoff,))
     conn.execute("DELETE FROM events WHERE created_at < ?", (_iso_ago(EVENT_RETENTION_SECS),))
+    conn.execute("DELETE FROM printer_commands WHERE created_at < ?", (_iso_ago(7 * 86400),))
     conn.commit()
     # Image files left behind without a database row (crash mid-write, manual edits)
     if data_dir:
@@ -1701,6 +1769,8 @@ class PrintPilotHandler(http.server.BaseHTTPRequestHandler):
                 self._require_manager(self._handle_settings_get)
             elif path == "/api/events":
                 self._require_manager(self._handle_events)
+            elif re.match(r"^/api/commands/[a-zA-Z0-9-]+$", path):
+                self._require_manager(lambda: self._handle_command_status(path))
             elif path.startswith("/api/images/"):
                 self._require_manager(lambda: self._handle_image(path))
             elif path.startswith("/"):
@@ -1732,6 +1802,12 @@ class PrintPilotHandler(http.server.BaseHTTPRequestHandler):
                 self._require_manager(self._handle_test_ai)
             elif path == "/api/maintenance/cleanup":
                 self._require_manager(self._handle_cleanup)
+            elif re.match(r"^/api/printers/[^/]+/commands$", path):
+                self._require_manager(lambda: self._handle_command_create(path))
+            elif path == "/api/device/commands/poll":
+                self._require_device_only(self._handle_command_poll)
+            elif path == "/api/device/commands/result":
+                self._require_device_only(self._handle_command_result)
             else:
                 self._send_error(404, "Not found")
         except Exception:
@@ -1744,6 +1820,14 @@ class PrintPilotHandler(http.server.BaseHTTPRequestHandler):
             return
         fn()
 
+    def _require_device_only(self, fn) -> None:
+        # Command execution endpoints: the device token only, never the manager token
+        token = self._get_bearer()
+        if not token or not secrets.compare_digest(token, self.cfg["device_token"]):
+            self._send_error(401, "Unauthorized: device token required")
+            return
+        fn()
+
     def _require_device(self, fn) -> None:
         if not self._auth_device():
             self._send_error(401, "Unauthorized: device token required")
@@ -1751,6 +1835,121 @@ class PrintPilotHandler(http.server.BaseHTTPRequestHandler):
         fn()
 
     # --- Endpoint handlers ----------------------------------------------
+
+    # --- Printer control ------------------------------------------------
+
+    def _expire_commands(self) -> None:
+        cutoff = _iso_ago(COMMAND_TTL_SECS)
+        rows = self.db.execute(
+            "SELECT id, printer_id, command, params FROM printer_commands WHERE status='pending' AND created_at < ?",
+            (cutoff,)).fetchall()
+        for row in rows:
+            self.db.execute("UPDATE printer_commands SET status='expired', updated_at=?, result=? WHERE id=?",
+                            (_now_iso(), "Cầu nối không nhận lệnh kịp", row["id"]))
+            log_event(self.db, "printer",
+                      f"Lệnh {describe_command(row['command'], json.loads(row['params'] or '{}'))} hết hạn (cầu nối không phản hồi)",
+                      "warning", row["printer_id"], commit=False)
+        if rows:
+            self.db.commit()
+
+    def _handle_command_create(self, path: str) -> None:
+        printer_id = urllib.parse.unquote(path.split("/")[3])
+        data, ok = self._parse_json_body(4096)
+        if not ok:
+            return
+        printer = self.db.execute(
+            "SELECT printer_id, device_id, status, last_seen, name FROM printers WHERE printer_id=?",
+            (printer_id,)).fetchone()
+        if not printer:
+            self._send_error(404, "Không tìm thấy máy in")
+            return
+        status = "offline" if printer["last_seen"] < _iso_ago(HEARTBEAT_STALE_SECS) else printer["status"]
+        command = data.get("command")
+        try:
+            params = validate_command(command, data.get("params"), status)
+        except ValueError as exc:
+            self._send_error(400, str(exc))
+            return
+        self._expire_commands()
+        busy = self.db.execute(
+            "SELECT 1 FROM printer_commands WHERE printer_id=? AND status IN ('pending','sent') LIMIT 1",
+            (printer_id,)).fetchone()
+        if busy:
+            self._send_error(409, "Máy đang xử lý một lệnh khác, thử lại sau vài giây")
+            return
+        cmd_id = str(uuid.uuid4())
+        now = _now_iso()
+        actor = self._actor()
+        self.db.execute(
+            """INSERT INTO printer_commands (id, created_at, updated_at, printer_id, device_id, command, params, status, actor)
+               VALUES (?,?,?,?,?,?,?,?,?)""",
+            (cmd_id, now, now, printer_id, printer["device_id"], command, json.dumps(params), "pending", actor))
+        self.db.commit()
+        log_event(self.db, "printer", f"Yêu cầu {describe_command(command, params)} cho {printer['name'] or printer_id}",
+                  printer_id=printer_id, actor=actor, data={"command_id": cmd_id, "command": command, "params": params})
+        self._send_json(202, {"id": cmd_id, "status": "pending"})
+
+    def _handle_command_status(self, path: str) -> None:
+        self._expire_commands()
+        cmd_id = path.rsplit("/", 1)[1]
+        row = self.db.execute(
+            "SELECT id, printer_id, command, status, result, created_at, updated_at FROM printer_commands WHERE id=?",
+            (cmd_id,)).fetchone()
+        if not row:
+            self._send_error(404, "Không tìm thấy lệnh")
+            return
+        self._send_json(200, dict(row))
+
+    def _handle_command_poll(self) -> None:
+        data, ok = self._parse_json_body(1024)
+        if not ok:
+            return
+        device_id = data.get("device_id")
+        if not isinstance(device_id, str) or not device_id:
+            self._send_error(400, "'device_id' required")
+            return
+        self._expire_commands()
+        rows = self.db.execute(
+            """SELECT c.id, c.printer_id, c.command, c.params FROM printer_commands c
+               WHERE c.status='pending' AND c.device_id=? ORDER BY c.created_at LIMIT 10""",
+            (device_id,)).fetchall()
+        now = _now_iso()
+        commands = []
+        for row in rows:
+            self.db.execute("UPDATE printer_commands SET status='sent', updated_at=? WHERE id=?", (now, row["id"]))
+            commands.append({"id": row["id"], "printer_id": row["printer_id"], "command": row["command"],
+                             "params": json.loads(row["params"] or "{}")})
+        if rows:
+            self.db.commit()
+        self._send_json(200, {"commands": commands})
+
+    def _handle_command_result(self) -> None:
+        data, ok = self._parse_json_body(4096)
+        if not ok:
+            return
+        cmd_id = data.get("id")
+        success = data.get("ok")
+        reason = data.get("reason") or ""
+        if not isinstance(cmd_id, str) or not isinstance(success, bool) or not isinstance(reason, str):
+            self._send_error(400, "'id', 'ok' and 'reason' required")
+            return
+        row = self.db.execute(
+            "SELECT id, printer_id, command, params, status FROM printer_commands WHERE id=?", (cmd_id,)).fetchone()
+        if not row or row["status"] != "sent":
+            self._send_error(404, "Command not awaiting a result")
+            return
+        status = "done" if success else "failed"
+        self.db.execute("UPDATE printer_commands SET status=?, result=?, updated_at=? WHERE id=?",
+                        (status, reason[:300], _now_iso(), cmd_id))
+        self.db.commit()
+        what = describe_command(row["command"], json.loads(row["params"] or "{}"))
+        if success:
+            log_event(self.db, "printer", f"Máy in đã thực hiện lệnh {what}", printer_id=row["printer_id"],
+                      data={"command_id": cmd_id})
+        else:
+            log_event(self.db, "printer", f"Máy in từ chối lệnh {what}: {reason[:200]}", "warning",
+                      row["printer_id"], data={"command_id": cmd_id})
+        self._send_json(200, {"status": status})
 
     # --- Activity log ---------------------------------------------------
 

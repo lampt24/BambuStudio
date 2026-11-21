@@ -124,6 +124,34 @@ async function main() {
     await page.waitForSelector('#detail-events .event');
     await page.keyboard.press('Escape');
 
+    console.log('4e. Printer controls follow state and round-trip through the bridge');
+    await first.click();
+    await page.waitForFunction(() => document.getElementById('detail').open);
+    assert.ok(await page.isEnabled('#detail [data-cmd="pause"]'));
+    assert.ok(await page.isDisabled('#detail [data-cmd="resume"]'));
+    assert.ok(await page.isEnabled('#detail [data-cmd="speed"][data-level="3"]'));
+    await page.click('#detail [data-cmd="pause"]');
+    let polled = [];
+    for (let i = 0; i < 20 && !polled.length; i++) {
+      await new Promise((r) => setTimeout(r, 300));
+      const res = await fetch(BASE + '/api/device/commands/poll', {
+        method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${DEVICE}` },
+        body: JSON.stringify({ device_id: 'redmi' }) });
+      polled = (await res.json()).commands;
+    }
+    assert.strictEqual(polled.length, 1);
+    assert.strictEqual(polled[0].command, 'pause');
+    assert.strictEqual(await post('/api/device/commands/result', { id: polled[0].id, ok: true, reason: 'success' }), 200);
+    await page.waitForFunction(() => document.getElementById('ctl-status').textContent.includes('đã thực hiện'), null, { timeout: 10000 });
+    page.once('dialog', (d) => d.dismiss());
+    await page.click('#detail [data-cmd="stop"]');   // dismissed confirm: nothing queued
+    await new Promise((r) => setTimeout(r, 500));
+    const none = await (await fetch(BASE + '/api/device/commands/poll', {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${DEVICE}` },
+      body: JSON.stringify({ device_id: 'redmi' }) })).json();
+    assert.deepStrictEqual(none.commands, []);
+    await page.keyboard.press('Escape');
+
     console.log('5. Ack removes the alert from the open list');
     const before = await page.locator('#alerts .alert').count();
     assert.ok(before >= 1);

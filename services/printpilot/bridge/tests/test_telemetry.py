@@ -192,3 +192,93 @@ class TestCapturePolicy(unittest.TestCase):
         self.assertEqual(svc.snapshot_interval(), 300)
         svc._apply_policy({"status": "ok"})
         self.assertTrue(svc._policy["capture_when_idle"])
+
+
+class TestCommands(unittest.TestCase):
+    def test_payloads(self):
+        self.assertEqual(tm.command_payload("pause", {}, "7"), {"print": {"sequence_id": "7", "command": "pause", "param": ""}})
+        self.assertEqual(tm.command_payload("speed", {"level": 3}, "7")["print"]["param"], "3")
+        light = tm.command_payload("light", {"mode": "on"}, "7")["system"]
+        self.assertEqual((light["command"], light["led_node"], light["led_mode"]), ("ledctrl", "chamber_light", "on"))
+        for bad in (("light", {"mode": "x"}), ("speed", {"level": 9}), ("gcode_line", {})):
+            with self.assertRaises(ValueError):
+                tm.command_payload(bad[0], bad[1], "7")
+
+    def test_interpret_reply(self):
+        self.assertEqual(tm.interpret_reply({"result": "success", "reason": "success"}), (True, "success"))
+        ok, reason = tm.interpret_reply({"command": "pause", "err_code": 84033543})
+        self.assertFalse(ok)
+        self.assertIn("84033543", reason)
+        self.assertFalse(tm.interpret_reply({"result": "fail", "reason": "busy"})[0])
+
+    def test_send_command_matches_reply_by_sequence(self):
+        import threading
+
+        class Sock:
+            def __init__(self):
+                self.sent = []
+            def sendall(self, data):
+                self.sent.append(data)
+
+        client = tm.TelemetryClient("192.0.2.1", "code", serial="SN")
+        client._sock = Sock()
+
+        def reply_later():
+            for _ in range(100):
+                if client._waiters:
+                    seq = next(iter(client._waiters))
+                    client.merge(json.dumps({"system": {"sequence_id": "other", "result": "fail"}}).encode())
+                    client.merge(json.dumps({"system": {"sequence_id": seq, "result": "success"}}).encode())
+                    return
+                time.sleep(0.01)
+        import time
+        threading.Thread(target=reply_later).start()
+        self.assertEqual(client.send_command("light", {"mode": "off"}, timeout=2), (True, "success"))
+        first, body = tm.read_packet(FakeSock(client._sock.sent[0]))
+        topic, payload = tm.parse_publish(first, body)
+        self.assertEqual(topic, "device/SN/request")
+        self.assertEqual(json.loads(payload)["system"]["led_mode"], "off")
+        self.assertEqual(client._waiters, {})
+
+    def test_send_command_without_connection_or_reply(self):
+        client = tm.TelemetryClient("192.0.2.1", "code", serial="SN")
+        self.assertFalse(client.send_command("pause", {})[0])
+
+        class Sock:
+            def sendall(self, data):
+                pass
+        client._sock = Sock()
+        ok, reason = client.send_command("pause", {}, timeout=0.05)
+        self.assertFalse(ok)
+        self.assertIn("không phản hồi", reason)
+
+    def test_light_and_speed_in_telemetry(self):
+        t = tm.normalize({"lights_report": [{"node": "chamber_light", "mode": "on"}], "spd_lvl": 2})
+        self.assertEqual((t["light"], t["speed_level"]), ("on", 2))
+
+    def test_poller_executes_and_reports(self):
+        from services.printpilot.bridge.main import CommandPoller
+
+        class Svc:
+            def __init__(self):
+                self.config = BridgeConfig(device_token="t", printer_id="a1")
+                self.telemetry = self
+                self.calls = []
+            def send_command(self, command, params):
+                self.calls.append((command, params))
+                return True, "success"
+
+        class Client:
+            results = []
+            def poll_commands(self, device_id):
+                return [{"id": "c1", "printer_id": "a1", "command": "light", "params": {"mode": "on"}},
+                        {"id": "c2", "printer_id": "ghost", "command": "pause", "params": {}}]
+            def post_command_result(self, cid, ok, reason):
+                self.results.append((cid, ok))
+
+        svc = Svc()
+        poller = CommandPoller(BridgeConfig(device_token="t", server_url="http://s", device_id="redmi"), [svc])
+        poller.client = Client()
+        self.assertEqual(poller.run_once(), 2)
+        self.assertEqual(svc.calls, [("light", {"mode": "on"})])
+        self.assertEqual(Client.results, [("c1", True), ("c2", False)])

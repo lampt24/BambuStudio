@@ -1920,5 +1920,81 @@ class TestActivityLog(ServerTestCase):
         self.assertEqual(msgs.count("A1 mất kết nối"), 1)
 
 
+class TestPrinterCommands(ServerTestCase):
+    def _hb(self, status="printing", printer="a1"):
+        return _jreq(self._port, "POST", "/api/heartbeat",
+                     {"device_id": "redmi", "printer_id": printer, "status": status}, token=DEVICE_TOKEN)[0]
+
+    def _cmd(self, command, params=None, printer="a1", token=MANAGER_TOKEN):
+        return _jreq(self._port, "POST", f"/api/printers/{printer}/commands",
+                     {"command": command, "params": params or {}}, token=token)
+
+    def _poll(self):
+        return _jreq(self._port, "POST", "/api/device/commands/poll", {"device_id": "redmi"}, token=DEVICE_TOKEN)
+
+    def test_full_round_trip(self):
+        self._hb("printing")
+        code, data = self._cmd("pause")
+        self.assertEqual(code, 202)
+        cmd_id = data["id"]
+        code, polled = self._poll()
+        self.assertEqual(polled["commands"], [{"id": cmd_id, "printer_id": "a1", "command": "pause", "params": {}}])
+        self.assertEqual(self._poll()[1]["commands"], [])  # delivered once
+        code, _ = _jreq(self._port, "POST", "/api/device/commands/result",
+                        {"id": cmd_id, "ok": True, "reason": "success"}, token=DEVICE_TOKEN)
+        self.assertEqual(code, 200)
+        status = json.loads(_req(self._port, "GET", f"/api/commands/{cmd_id}").read())
+        self.assertEqual(status["status"], "done")
+        events = json.loads(_req(self._port, "GET", "/api/events?printer=a1").read())["events"]
+        self.assertTrue(any("Máy in đã thực hiện lệnh tạm dừng in" in e["message"] for e in events))
+        self.assertTrue(any(e["actor"] == "mã quản lý" and e["message"].startswith("Yêu cầu tạm dừng") for e in events))
+
+    def test_state_rules(self):
+        self._hb("idle")
+        self.assertEqual(self._cmd("pause")[0], 400)
+        self.assertEqual(self._cmd("resume")[0], 400)
+        self.assertEqual(self._cmd("stop")[0], 400)
+        self.assertEqual(self._cmd("light", {"mode": "on"})[0], 202)
+
+    def test_param_validation_and_unknown(self):
+        self._hb("printing")
+        self.assertEqual(self._cmd("light", {"mode": "blink"})[0], 400)
+        self.assertEqual(self._cmd("speed", {"level": 9})[0], 400)
+        self.assertEqual(self._cmd("gcode", {"line": "M104 S300"})[0], 400)
+        self.assertEqual(self._cmd("pause", printer="nope")[0], 404)
+
+    def test_one_command_at_a_time(self):
+        self._hb("printing")
+        self.assertEqual(self._cmd("speed", {"level": 3})[0], 202)
+        self.assertEqual(self._cmd("pause")[0], 409)
+
+    def test_auth_separation(self):
+        self._hb("printing")
+        self.assertEqual(self._cmd("pause", token=DEVICE_TOKEN)[0], 401)
+        code, _ = _jreq(self._port, "POST", "/api/device/commands/poll", {"device_id": "redmi"})
+        self.assertEqual(code, 401)  # manager token cannot pull commands
+
+    def test_pending_command_expires(self):
+        from server import open_db
+        self._hb("printing")
+        cmd_id = self._cmd("pause")[1]["id"]
+        conn = open_db(os.path.join(self._tmpdir, "printpilot.db"))
+        conn.execute("UPDATE printer_commands SET created_at='2000-01-01T00:00:00Z' WHERE id=?", (cmd_id,))
+        conn.commit()
+        self.assertEqual(self._poll()[1]["commands"], [])
+        status = json.loads(_req(self._port, "GET", f"/api/commands/{cmd_id}").read())
+        self.assertEqual(status["status"], "expired")
+
+    def test_offline_printer_rejected(self):
+        from server import open_db
+        self._hb("printing")
+        conn = open_db(os.path.join(self._tmpdir, "printpilot.db"))
+        conn.execute("UPDATE printers SET last_seen='2000-01-01T00:00:00Z'")
+        conn.commit()
+        code, data = self._cmd("light", {"mode": "on"})
+        self.assertEqual(code, 400)
+        self.assertIn("mất kết nối", data["error"])
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

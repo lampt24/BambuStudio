@@ -353,14 +353,59 @@ class BridgeService:
         return 0
 
 
+class CommandPoller:
+    """Pulls queued control commands from the server and runs them over MQTT."""
+
+    POLL_SECONDS = 3.0
+
+    def __init__(self, config: BridgeConfig, services: list):
+        self.device_id = config.device_id
+        self.by_printer = {svc.config.printer_id: svc for svc in services}
+        self.client = PrintPilotApiClient(server_url=config.server_url, device_token=config.device_token,
+                                          timeout=config.read_timeout)
+        self._stop = threading.Event()
+
+    def stop(self) -> None:
+        self._stop.set()
+
+    def run_once(self) -> int:
+        handled = 0
+        for cmd in self.client.poll_commands(self.device_id):
+            if not isinstance(cmd, dict) or not isinstance(cmd.get("id"), str):
+                continue
+            svc = self.by_printer.get(cmd.get("printer_id"))
+            params = cmd.get("params") if isinstance(cmd.get("params"), dict) else {}
+            if svc is None or svc.telemetry is None:
+                ok, reason = False, "cầu nối không quản lý máy in này"
+            else:
+                logger.info("Executing %s on %s", cmd.get("command"), svc.config.printer_id)
+                ok, reason = svc.telemetry.send_command(str(cmd.get("command")), params)
+            try:
+                self.client.post_command_result(cmd["id"], ok, reason)
+            except Exception as e:
+                logger.warning("Could not report command result: %s", sanitize_message(str(e)))
+            handled += 1
+        return handled
+
+    def run(self) -> None:
+        while not self._stop.is_set():
+            try:
+                self.run_once()
+            except Exception as e:
+                logger.debug("Command poll failed: %s", sanitize_message(str(e)))
+            self._stop.wait(self.POLL_SECONDS)
+
+
 class MultiBridge:
     """Runs one BridgeService per configured printer, each in its own thread."""
 
     def __init__(self, config: BridgeConfig, heartbeat_only: bool = False):
         self.services = [BridgeService(c, heartbeat_only=heartbeat_only)
                          for c in config.printer_configs()]
+        self.poller = CommandPoller(config, self.services)
 
     def stop(self) -> None:
+        self.poller.stop()
         for svc in self.services:
             svc.stop()
 
@@ -368,6 +413,7 @@ class MultiBridge:
         return max(svc.run_once() for svc in self.services)
 
     def run(self) -> int:
+        threading.Thread(target=self.poller.run, daemon=True, name="command-poller").start()
         if len(self.services) == 1:
             return self.services[0].run()
         threads = [threading.Thread(target=svc.run, daemon=True, name=f"printer-{svc.config.printer_id}")

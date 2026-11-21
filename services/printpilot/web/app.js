@@ -32,6 +32,7 @@
     events: { items: [], next: null, pagedBeyondFirst: false, loading: false },
     detailPrinterId: null,
     detailSnapshotId: null,
+    cmd: null,                   // { printerId, id, label } while a control command is in flight
     timer: null,
     syncing: false,
   };
@@ -557,11 +558,86 @@
   // Detail dialog
   // ---------------------------------------------------------------------------
   function openDetail(printerId) {
+    if (state.detailPrinterId !== printerId) ctlStatus('');
     state.detailPrinterId = printerId;
     state.detailSnapshotId = null;
     renderDetail();
     const dlg = $('detail');
     if (!dlg.open) dlg.showModal();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Printer controls
+  // ---------------------------------------------------------------------------
+  const SPEED = { 1: 'Êm', 2: 'Chuẩn', 3: 'Thể thao', 4: 'Siêu tốc' };
+  const CMD_LABEL = { pause: 'Tạm dừng', resume: 'Tiếp tục', stop: 'Dừng in' };
+
+  function ctlStatus(text, kind = '') {
+    const n = $('ctl-status');
+    n.textContent = text;
+    n.dataset.state = kind;
+  }
+
+  function renderControls(p) {
+    const status = printerStatus(p);
+    const t = p.telemetry || {};
+    const busy = Boolean(state.cmd);
+    const allowed = {
+      pause: status === 'printing',
+      resume: status === 'paused',
+      stop: ['printing', 'paused', 'error'].includes(status),
+    };
+    document.querySelectorAll('#detail [data-cmd]').forEach((b) => {
+      const cmd = b.dataset.cmd;
+      let enabled = status !== 'offline' && !busy;
+      if (cmd in allowed) enabled = enabled && allowed[cmd];
+      if (cmd === 'speed') {
+        enabled = enabled && (status === 'printing' || status === 'paused');
+        b.setAttribute('aria-pressed', String(Number(b.dataset.level) === t.speed_level));
+      }
+      b.disabled = !enabled;
+    });
+    const light = $('ctl-light');
+    light.textContent = t.light === 'on' ? 'Tắt đèn' : 'Bật đèn';
+    light.dataset.mode = t.light === 'on' ? 'off' : 'on';
+    if (!busy && status === 'offline') ctlStatus('Máy in mất kết nối, không thể điều khiển.', 'error');
+  }
+
+  async function runCommand(button) {
+    const p = (state.data.printers || []).find((x) => x.printer_id === state.detailPrinterId);
+    if (!p || state.cmd) return;
+    const command = button.dataset.cmd;
+    const params = {};
+    let label = CMD_LABEL[command] || command;
+    if (command === 'light') { params.mode = button.dataset.mode; label = params.mode === 'on' ? 'Bật đèn' : 'Tắt đèn'; }
+    if (command === 'speed') { params.level = Number(button.dataset.level); label = `Tốc độ ${SPEED[params.level]}`; }
+    if (command === 'stop' && !window.confirm(`Dừng hẳn bản in trên ${printerName(p)}? Không thể tiếp tục sau khi dừng.`)) return;
+
+    state.cmd = { printerId: p.printer_id, id: null, label };
+    renderControls(p);
+    ctlStatus(`${label}: đang gửi tới cầu nối…`);
+    try {
+      const { status, data } = await postJsonAllowError(`/api/printers/${encodeURIComponent(p.printer_id)}/commands`, { command, params });
+      if (status !== 202) { ctlStatus(data.error || 'Không gửi được lệnh', 'error'); return; }
+      state.cmd.id = data.id;
+      const deadline = Date.now() + 45000;
+      while (Date.now() < deadline) {
+        await new Promise((r) => setTimeout(r, 1500));
+        const st = await (await api(`/api/commands/${encodeURIComponent(data.id)}`)).json();
+        if (st.status === 'sent') ctlStatus(`${label}: máy in đang xử lý…`);
+        if (st.status === 'done') { ctlStatus(`${label}: máy in đã thực hiện.`, 'ok'); sync(); return; }
+        if (st.status === 'failed') { ctlStatus(`${label}: máy in từ chối (${st.result || 'không rõ'}).`, 'error'); return; }
+        if (st.status === 'expired') { ctlStatus(`${label}: cầu nối không nhận lệnh. Kiểm tra Redmi.`, 'error'); return; }
+      }
+      ctlStatus(`${label}: quá thời gian chờ phản hồi.`, 'error');
+    } catch (err) {
+      if (err instanceof AuthError) handleError(err);
+      else ctlStatus('Lỗi kết nối máy chủ', 'error');
+    } finally {
+      state.cmd = null;
+      const cur = (state.data.printers || []).find((x) => x.printer_id === state.detailPrinterId);
+      if (cur) renderControls(cur);
+    }
   }
 
   async function loadDetailEvents(printerId) {
@@ -600,7 +676,12 @@
       $('detail-caption').textContent = 'Chưa có ảnh';
     }
 
-    const fresh = visionBox(vision(current));
+    let dv = vision(current);
+    if ((status === 'idle' || status === 'offline') && current === snaps[0] && current
+        && ageSec(current.captured_at || current.created_at) > STALE_IMAGE_SEC) {
+      dv = { state: 'none', text: 'Máy không in nên camera tạm nghỉ. Ảnh sẽ tự cập nhật khi bắt đầu in.' };
+    }
+    const fresh = visionBox(dv);
     fresh.id = 'detail-vision';
     $('detail-vision').replaceWith(fresh);
 
@@ -620,6 +701,8 @@
       ['Cầu nối', p.device_id || '--'],
       ['Cập nhật', relTime(p.last_seen)],
     ].forEach(([k, v]) => { kv.appendChild(el('dt', '', k)); kv.appendChild(el('dd', 'num', v)); });
+
+    renderControls(p);
 
     const names = printerNames();
     const dAlerts = $('detail-alerts');
@@ -914,9 +997,9 @@
     bindSettings();
     ['ev-printer', 'ev-category', 'ev-problems'].forEach((id) => $(id).addEventListener('change', () => loadEvents(true)));
     $('events-more').addEventListener('click', () => loadEvents(false));
-    document.querySelectorAll('.seg').forEach((b) => b.addEventListener('click', () => {
+    document.querySelectorAll('.seg[data-filter]').forEach((b) => b.addEventListener('click', () => {
       state.alertFilter = b.dataset.filter;
-      document.querySelectorAll('.seg').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+      document.querySelectorAll('.seg[data-filter]').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
       renderAlerts();
     }));
 
@@ -924,6 +1007,7 @@
     detail.querySelector('[data-close]').addEventListener('click', () => detail.close());
     detail.addEventListener('click', (e) => { if (e.target === detail) detail.close(); });
     detail.addEventListener('close', () => { state.detailPrinterId = null; });
+    detail.querySelectorAll('[data-cmd]').forEach((b) => b.addEventListener('click', () => runCommand(b)));
 
     const login = $('login');
     login.addEventListener('cancel', (e) => e.preventDefault()); // must authenticate

@@ -201,6 +201,16 @@ class PrintPilotApiClient:
         )
         return self._make_request("/api/heartbeat", payload)
 
+    def poll_commands(self, device_id: str) -> list:
+        """Fetch control commands the server queued for this bridge."""
+        data = self._make_request("/api/device/commands/poll", {"device_id": device_id})
+        commands = data.get("commands") if isinstance(data, dict) else None
+        return commands if isinstance(commands, list) else []
+
+    def post_command_result(self, command_id: str, ok: bool, reason: str) -> Dict[str, Any]:
+        return self._make_request("/api/device/commands/result",
+                                  {"id": command_id, "ok": ok, "reason": sanitize_message(reason)[:300]})
+
     def send_with_retry(
         self,
         fn,
