@@ -1255,6 +1255,7 @@
         config: data.config || {},
       };
       applyExpectations();
+      checkWebVersion(state.data.config.web_version);
       showBanner('');
       setSync(`Cập nhật ${clock(new Date().toISOString())}`);
       renderHealth();
@@ -1270,6 +1271,17 @@
     } finally {
       state.syncing = false;
     }
+  }
+
+  // The dashboard is a long-lived tab: pick up new dashboard files on its own,
+  // but never in the middle of something (settings form, live view, command).
+  function checkWebVersion(v) {
+    if (!v) return;
+    if (!state.webVersion) { state.webVersion = v; return; }
+    if (v === state.webVersion) return;
+    const busy = $('settings').open || $('login').open || state.live || Object.keys(state.cmds).length
+      || ($('detail').open && !$('detail').classList.contains('docked'));
+    if (!busy) location.reload();
   }
 
   function schedule() {

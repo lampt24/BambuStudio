@@ -1211,6 +1211,20 @@ def telegram_configured(cfg: dict) -> bool:
                 and str(cfg.get("telegram_chat_id", "")).strip())
 
 
+def web_version(web_dir: str) -> str:
+    """Short fingerprint of the dashboard files; open tabs reload when it changes."""
+    h = hashlib.sha256()
+    try:
+        for name in sorted(os.listdir(web_dir)):
+            path = os.path.join(web_dir, name)
+            if os.path.isfile(path) and not name.startswith("test_"):
+                st = os.stat(path)
+                h.update(f"{name}:{st.st_size}:{st.st_mtime_ns};".encode())
+    except OSError:
+        return ""
+    return h.hexdigest()[:12]
+
+
 def notifications_configured(cfg: dict) -> bool:
     return bool(str(cfg.get("webhook_url", "")).strip()) or telegram_configured(cfg)
 
@@ -2320,6 +2334,7 @@ class PrintPilotHandler(http.server.BaseHTTPRequestHandler):
             "ai_configured":           bool(cfg.get("ai_base_url") and cfg.get("ai_key")),
             "vision_configured":       bool(setting(cfg, "vision_enabled") and (cfg.get("vision_model") or cfg.get("ai_model"))),
             "notifications_configured": notifications_configured(cfg),
+            "web_version":             web_version(self.web_dir),
         }
 
         self._send_json(200, {

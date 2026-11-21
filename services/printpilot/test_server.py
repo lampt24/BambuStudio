@@ -430,6 +430,7 @@ class TestState(ServerTestCase):
             self.assertIn(k, cfg)
         self.assertFalse(cfg["ai_configured"])
         self.assertFalse(cfg["notifications_configured"])
+        self.assertRegex(cfg["web_version"], r"^[0-9a-f]{12}$")
 
     def test_state_deserializes_analysis_and_device_freshness(self):
         conn = open_db(os.path.join(self._tmpdir, "printpilot.db"))
