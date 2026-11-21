@@ -265,6 +265,7 @@ class TelemetryClient:
         self._sock = None
         self._send_lock = threading.Lock()
         self._waiters: Dict[str, Dict[str, Any]] = {}  # sequence_id -> {"event", "reply"}
+        self._full_report = threading.Event()  # set when a full status (pushall reply) arrives
 
     # -- public -----------------------------------------------------------
     def start(self) -> None:
@@ -282,6 +283,40 @@ class TelemetryClient:
             if not self._raw or time.monotonic() - self._updated_at > max_age:
                 return {}
             return normalize(self._raw)
+
+    def refresh(self, timeout: float = 3.0) -> bool:
+        """Ask for a full status push and wait for it; True once it has been merged.
+
+        Used right after a control command so the next heartbeat carries the
+        printer's new state (light, speed, pause) instead of the cached one.
+        """
+        self._full_report.clear()
+        try:
+            with self._send_lock:
+                if self._sock is None:
+                    return False
+                self._pushall(self._sock)
+        except OSError:
+            return False
+        return self._full_report.wait(timeout)
+
+    def wait_for(self, key: str, value: Any, timeout: float = 5.0) -> bool:
+        """Refresh until normalised telemetry shows key == value (or time runs out).
+
+        Right after a command the printer may answer pushall with its previous
+        state, so a single refresh is not enough.
+        """
+        deadline = time.monotonic() + timeout
+        while True:
+            if self.snapshot().get(key) == value:
+                return True
+            left = deadline - time.monotonic()
+            if left <= 0:
+                return False
+            self.refresh(min(1.0, left))
+            if self.snapshot().get(key) == value:
+                return True
+            time.sleep(min(0.4, max(0.0, deadline - time.monotonic())))
 
     # -- internals ----------------------------------------------------------
     def send_command(self, command: str, params: Dict[str, Any], timeout: float = 10.0) -> tuple[bool, str]:
@@ -329,6 +364,8 @@ class TelemetryClient:
             self._raw.update(report)
             self._updated_at = time.monotonic()
             current = normalize(self._raw)
+        if "lights_report" in report and "gcode_state" in report:
+            self._full_report.set()
         if self.on_update:
             try:
                 self.on_update(current)

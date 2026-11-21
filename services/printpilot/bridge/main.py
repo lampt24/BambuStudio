@@ -457,12 +457,41 @@ class CommandPoller:
             else:
                 logger.info("Executing %s on %s", cmd.get("command"), svc.config.printer_id)
                 ok, reason = svc.telemetry.send_command(str(cmd.get("command")), params)
+                if ok:
+                    self._publish_new_state(svc, str(cmd.get("command")), params)
             try:
                 self.client.post_command_result(cmd["id"], ok, reason)
             except Exception as e:
                 logger.warning("Could not report command result: %s", sanitize_message(str(e)))
             handled += 1
         return handled
+
+    # What telemetry should show once a command has taken effect
+    EXPECTED = {
+        "light": lambda p: ("light", p.get("mode")),
+        "speed": lambda p: ("speed_level", p.get("level")),
+        "pause": lambda p: ("gcode_state", "PAUSE"),
+        "resume": lambda p: ("gcode_state", "RUNNING"),
+    }
+
+    @classmethod
+    def _publish_new_state(cls, svc, command: str = "", params: Optional[dict] = None) -> None:
+        """Push the printer's post-command state to the server before reporting the
+        result, so the dashboard never re-reads the pre-command value."""
+        try:
+            tele = svc.telemetry
+            expected = cls.EXPECTED.get(command)
+            if expected and hasattr(tele, "wait_for"):
+                key, value = expected(params or {})
+                if not tele.wait_for(key, value):
+                    logger.info("%s: telemetry did not show %s=%s yet", command, key, value)
+            elif hasattr(tele, "refresh"):
+                tele.refresh()
+            heartbeat = getattr(svc, "send_periodic_heartbeat", None)
+            if heartbeat:
+                heartbeat()
+        except Exception as e:  # never block the command result on this
+            logger.warning("Could not publish post-command state: %s", sanitize_message(str(e)))
 
     def run(self) -> None:
         while not self._stop.is_set():

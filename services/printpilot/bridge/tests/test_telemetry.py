@@ -284,6 +284,73 @@ class TestCommands(unittest.TestCase):
         self.assertEqual(svc.calls, [("light", {"mode": "on"})])
         self.assertEqual(Client.results, [("c1", True), ("c2", False)])
 
+    def test_poller_publishes_new_state_before_result(self):
+        from services.printpilot.bridge.main import CommandPoller
+        order = []
+
+        class Svc:
+            def __init__(self):
+                self.config = BridgeConfig(device_token="t", printer_id="a1")
+                self.telemetry = self
+            def send_command(self, command, params):
+                order.append("command")
+                return True, "success"
+            def wait_for(self, key, value):
+                order.append(f"wait {key}={value}")
+                return True
+            def send_periodic_heartbeat(self):
+                order.append("heartbeat")
+
+        class Client:
+            def poll_commands_full(self, device_id):
+                return {"commands": [{"id": "c1", "printer_id": "a1", "command": "light", "params": {"mode": "off"}}]}
+            def post_command_result(self, cid, ok, reason):
+                order.append("result")
+
+        poller = CommandPoller(BridgeConfig(device_token="t", server_url="http://s", device_id="redmi"), [Svc()])
+        poller.client = Client()
+        poller.run_once()
+        self.assertEqual(order, ["command", "wait light=off", "heartbeat", "result"])
+
+    def test_refresh_waits_for_full_report(self):
+        import threading
+        sent = []
+
+        class Sock:
+            def sendall(self, data):
+                sent.append(data)
+
+        client = tm.TelemetryClient("192.0.2.1", "code", serial="SN")
+        self.assertFalse(client.refresh(timeout=0.05))  # not connected
+        client._sock = Sock()
+        self.assertFalse(client.refresh(timeout=0.05))  # no reply
+        def push():
+            time.sleep(0.05)
+            client.merge(json.dumps({"print": {"spd_lvl": 2}}).encode())   # delta only: not enough
+            client.merge(json.dumps({"print": {"gcode_state": "IDLE", "lights_report": [{"node": "chamber_light", "mode": "off"}]}}).encode())
+        import time
+        threading.Thread(target=push).start()
+        self.assertTrue(client.refresh(timeout=2))
+        self.assertEqual(client.snapshot()["light"], "off")
+        self.assertIn(b"pushall", sent[-1])
+
+    def test_wait_for_retries_until_state_changes(self):
+        import threading, time
+        client = tm.TelemetryClient("192.0.2.1", "code", serial="SN")
+        pushes = []
+
+        class Sock:
+            # The first pushall is answered with the stale state, the second with the new one
+            def sendall(self, data):
+                pushes.append(data)
+                mode = "off" if len(pushes) == 1 else "on"
+                threading.Timer(0.02, client.merge, args=(json.dumps({"print": {
+                    "gcode_state": "IDLE", "lights_report": [{"node": "chamber_light", "mode": mode}]}}).encode(),)).start()
+        client._sock = Sock()
+        self.assertTrue(client.wait_for("light", "on", timeout=3))
+        self.assertGreaterEqual(len(pushes), 2)
+        self.assertFalse(client.wait_for("light", "flashing", timeout=0.3))
+
 
 class TestLiveStreamer(unittest.TestCase):
     def test_streams_until_server_stops_accepting(self):

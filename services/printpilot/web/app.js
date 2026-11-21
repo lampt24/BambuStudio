@@ -45,6 +45,7 @@
     detailPrinterId: null,
     detailSnapshotId: null,
     cmd: null,                   // { printerId, id, label } while a control command is in flight
+    expect: {},                  // printerId -> { key, value, until }: confirmed command, server may lag
     live: null,                  // { printerId, seq, token, url, frames:[t...] } while watching
     timer: null,
     syncing: false,
@@ -764,7 +765,15 @@
         await new Promise((r) => setTimeout(r, 1500));
         const st = await (await api(`/api/commands/${encodeURIComponent(data.id)}`)).json();
         if (st.status === 'sent') ctlStatus(`${label}: máy in đang xử lý…`);
-        if (st.status === 'done') { ctlStatus(`${label}: máy in đã thực hiện.`, 'ok'); sync(); return; }
+        if (st.status === 'done') {
+          ctlStatus(`${label}: máy in đã thực hiện.`, 'ok');
+          // Show the confirmed state now; an older bridge may report it up to 30 s later
+          if (command === 'light') state.expect[p.printer_id] = { key: 'light', value: params.mode, until: Date.now() + 40000 };
+          if (command === 'speed') state.expect[p.printer_id] = { key: 'speed_level', value: params.level, until: Date.now() + 40000 };
+          applyExpectations();
+          sync();
+          return;
+        }
         if (st.status === 'failed') { ctlStatus(`${label}: máy in từ chối (${st.result || 'không rõ'}).`, 'error'); return; }
         if (st.status === 'expired') { ctlStatus(`${label}: cầu nối không nhận lệnh. Kiểm tra Redmi.`, 'error'); return; }
       }
@@ -777,6 +786,17 @@
       const cur = (state.data.printers || []).find((x) => x.printer_id === state.detailPrinterId);
       if (cur) renderControls(cur);
     }
+  }
+
+  function applyExpectations() {
+    const now = Date.now();
+    (state.data.printers || []).forEach((p) => {
+      const e = state.expect[p.printer_id];
+      if (!e) return;
+      p.telemetry = p.telemetry || {};
+      if (now > e.until || p.telemetry[e.key] === e.value) { delete state.expect[p.printer_id]; return; }
+      p.telemetry[e.key] = e.value;
+    });
   }
 
   async function loadDetailEvents(printerId) {
@@ -1083,6 +1103,7 @@
         devices: Array.isArray(data.devices) ? data.devices : [],
         config: data.config || {},
       };
+      applyExpectations();
       showBanner('');
       setSync(`Cập nhật ${clock(new Date().toISOString())}`);
       renderHealth();

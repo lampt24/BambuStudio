@@ -163,6 +163,23 @@ async function main() {
     assert.strictEqual(polled[0].command, 'pause');
     assert.strictEqual(await post('/api/device/commands/result', { id: polled[0].id, ok: true, reason: 'success' }), 200);
     await page.waitForFunction(() => document.getElementById('ctl-status').textContent.includes('đã thực hiện'), null, { timeout: 10000 });
+    // Light: confirmed "on" must flip the button even while the server still holds the old state
+    assert.strictEqual(await page.getAttribute('#ctl-light', 'aria-label'), 'Bật đèn');
+    await page.click('#ctl-light');
+    polled = [];
+    for (let i = 0; i < 20 && !polled.length; i++) {
+      await new Promise((r) => setTimeout(r, 300));
+      const res = await fetch(BASE + '/api/device/commands/poll', {
+        method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${DEVICE}` },
+        body: JSON.stringify({ device_id: 'redmi' }) });
+      polled = (await res.json()).commands;
+    }
+    assert.deepStrictEqual([polled[0].command, polled[0].params.mode], ['light', 'on']);
+    assert.strictEqual(await post('/api/device/commands/result', { id: polled[0].id, ok: true, reason: 'success' }), 200);
+    await page.waitForFunction(() => document.getElementById('ctl-light').getAttribute('aria-label') === 'Tắt đèn', null, { timeout: 10000 });
+    await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+    await new Promise((r) => setTimeout(r, 1500));
+    assert.strictEqual(await page.getAttribute('#ctl-light', 'aria-label'), 'Tắt đèn');
     page.once('dialog', (d) => d.dismiss());
     await page.click('#detail [data-cmd="stop"]');   // dismissed confirm: nothing queued
     await new Promise((r) => setTimeout(r, 500));
