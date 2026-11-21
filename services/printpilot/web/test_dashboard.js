@@ -212,10 +212,11 @@ async function main() {
     assert.ok((await page.getAttribute('#detail-img', 'src')).startsWith('blob:'));
     assert.strictEqual(await page.getAttribute('#btn-live', 'aria-label'), 'Dừng xem');
     assert.strictEqual(await page.getAttribute('#btn-live', 'aria-pressed'), 'true');
-    await page.keyboard.press('Escape');
-    await page.waitForFunction(() => !document.getElementById('detail').open);
+    await tab('log');   // leaving the printers tab stops the stream
     await new Promise((r) => setTimeout(r, 500));
     assert.deepStrictEqual((await devPoll()).live, []);
+    assert.strictEqual(await page.getAttribute('#btn-live', 'aria-pressed'), 'false');
+    await tab('printers');
 
     console.log('5. Ack removes the alert from the open list');
     await tab('alerts');
@@ -227,13 +228,20 @@ async function main() {
     assert.ok(await page.evaluate(() => document.querySelector('.printer:nth-child(2) .alert-count').hidden));
     assert.ok(await page.isHidden('#alerts-count'));
 
-    console.log('6. Detail dialog opens and closes');
+    console.log('6. Desktop: details docked on the right, selection follows cards and sidebar');
     await tab('printers');
     await first.click();
-    assert.ok(await page.evaluate(() => document.getElementById('detail').open));
+    assert.ok(await page.evaluate(() => document.getElementById('detail').open && document.getElementById('detail').classList.contains('docked')));
+    assert.ok(!(await page.evaluate(() => document.getElementById('detail').matches(':modal'))));
     assert.ok((await page.textContent('#detail-metrics')).includes('42%'));
-    await page.keyboard.press('Escape');
-    assert.ok(!(await page.evaluate(() => document.getElementById('detail').open)));
+    assert.ok(await first.evaluate((c) => c.classList.contains('selected')));
+    const pBox = await page.locator('.printer-col').boundingBox();
+    const dBox = await page.locator('#detail').boundingBox();
+    assert.ok(dBox.x > pBox.x + pBox.width - 1, 'detail should sit to the right of the list');
+    await page.click('.nav-printer[data-printer="a1-02"]');
+    await page.waitForFunction(() => document.getElementById('detail-title').textContent === 'A1 phải');
+    assert.ok(await second.evaluate((c) => c.classList.contains('selected')));
+    assert.strictEqual((await page.textContent('#nav-printers-count')).trim(), '2');
 
     console.log('7. CSP header present and no console errors');
     const res = await fetch(BASE + '/');
@@ -290,6 +298,11 @@ async function main() {
     await tab('log');
     assert.ok(!(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth)));
     await tab('printers');
+    assert.ok(!(await page.evaluate(() => document.getElementById('detail').open)), 'docked panel closes on narrow screens');
+    await first.click();
+    assert.ok(await page.evaluate(() => document.getElementById('detail').matches(':modal')));
+    await page.keyboard.press('Escape');
+    assert.ok(!(await page.evaluate(() => document.getElementById('detail').open)));
     await page.click('#btn-settings');
     await page.waitForFunction(() => document.getElementById('settings').open);
     assert.ok(!(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth)));

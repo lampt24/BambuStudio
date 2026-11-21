@@ -68,34 +68,58 @@
   <aside class="side">
     <a class="brand" href="#printers" aria-label="PrintPilot">
       <span class="brand-mark" aria-hidden="true"><svg class="i"><use href="#i-printer"/></svg></span>
-      <span class="brand-name">PrintPilot</span>
+      <span class="brand-text">
+        <span class="brand-name">PrintPilot</span>
+        <span class="brand-sub">Trạm điều khiển in 3D</span>
+      </span>
     </a>
 
     <nav class="nav" aria-label="Mục chính">
+      <p class="nav-section">Giám sát</p>
       <a class="nav-item" href="#printers" data-tab="printers">
-        <svg class="i"><use href="#i-printer"/></svg><span class="nav-label">Máy in</span>
+        <span class="nav-icon"><svg class="i"><use href="#i-printer"/></svg></span><span class="nav-label">Máy in</span>
+        <span id="nav-printers-count" class="nav-count num" hidden></span>
       </a>
+      <ul id="nav-printers" class="nav-sub" aria-label="Chọn máy in"></ul>
       <a class="nav-item" href="#alerts" data-tab="alerts">
-        <svg class="i"><use href="#i-bell"/></svg><span class="nav-label">Cảnh báo</span>
+        <span class="nav-icon"><svg class="i"><use href="#i-bell"/></svg></span><span class="nav-label">Cảnh báo</span>
         <span id="alerts-count" class="nav-badge num" hidden></span>
       </a>
+      <p class="nav-section">Phân tích</p>
       <a class="nav-item" href="#ai" data-tab="ai">
-        <svg class="i"><use href="#i-wand-sparkles"/></svg><span class="nav-label">Tối ưu AI</span>
+        <span class="nav-icon"><svg class="i"><use href="#i-wand-sparkles"/></svg></span><span class="nav-label">Tối ưu AI</span>
+        <span id="nav-ai-count" class="nav-count num" hidden></span>
       </a>
       <a class="nav-item" href="#log" data-tab="log">
-        <svg class="i"><use href="#i-history"/></svg><span class="nav-label">Nhật ký</span>
+        <span class="nav-icon"><svg class="i"><use href="#i-history"/></svg></span><span class="nav-label">Nhật ký</span>
       </a>
     </nav>
 
     <div class="side-spacer"></div>
 
-    <ul class="health" aria-label="Trạng thái hệ thống">
-      <li id="health-ai" class="health-item" data-state="unknown" tabindex="0"><span class="dot" aria-hidden="true"></span><span class="health-label">AI</span></li>
-      <li id="health-bridge" class="health-item" data-state="unknown" tabindex="0"><span class="dot" aria-hidden="true"></span><span class="health-label">Cầu nối</span></li>
-      <li id="health-notify" class="health-item" data-state="unknown" tabindex="0"><span class="dot" aria-hidden="true"></span><span class="health-label">Telegram</span></li>
-    </ul>
+    <section class="sys" aria-labelledby="h-sys">
+      <p id="h-sys" class="nav-section">Hệ thống</p>
+      <ul class="health">
+        <li id="health-ai" class="health-item" data-state="unknown" tabindex="0">
+          <span class="health-icon"><svg class="i"><use href="#i-sparkles"/></svg></span><span class="health-label">AI</span><span class="dot" aria-hidden="true"></span>
+        </li>
+        <li id="health-bridge" class="health-item" data-state="unknown" tabindex="0">
+          <span class="health-icon"><svg class="i"><use href="#i-plug"/></svg></span><span class="health-label">Cầu nối</span><span class="dot" aria-hidden="true"></span>
+        </li>
+        <li id="health-notify" class="health-item" data-state="unknown" tabindex="0">
+          <span class="health-icon"><svg class="i"><use href="#i-send"/></svg></span><span class="health-label">Telegram</span><span class="dot" aria-hidden="true"></span>
+        </li>
+      </ul>
+    </section>
 
     <div class="side-actions">
+      <div class="user">
+        <span id="user-chip" class="user-chip" hidden></span>
+        <span class="user-text">
+          <span id="user-name" class="user-name"></span>
+          <span id="user-method" class="user-method"></span>
+        </span>
+      </div>
       <div class="theme-switch">
         <button id="btn-theme" class="icon-btn" type="button" aria-haspopup="menu" aria-expanded="false" aria-label="Giao diện" data-tip="Giao diện">
           <svg class="i" data-icon="auto"><use href="#i-sun-moon"/></svg>
@@ -111,12 +135,9 @@
       <button id="btn-settings" class="icon-btn" type="button" aria-label="Cài đặt" data-tip="Cài đặt" hidden>
         <svg class="i"><use href="#i-settings"/></svg>
       </button>
-      <div class="user">
-        <span id="user-chip" class="user-chip" hidden></span>
-        <button id="btn-logout" class="icon-btn" type="button" aria-label="Đăng xuất" data-tip="Đăng xuất" hidden>
-          <svg class="i"><use href="#i-log-out"/></svg>
-        </button>
-      </div>
+      <button id="btn-logout" class="icon-btn" type="button" aria-label="Đăng xuất" data-tip="Đăng xuất" hidden>
+        <svg class="i"><use href="#i-log-out"/></svg>
+      </button>
     </div>
   </aside>
 
@@ -132,11 +153,91 @@
         </div>
         <span id="sync-status" class="sync num" aria-live="polite">Đang tải…</span>
       </header>
-      <div id="printers" class="printer-grid"></div>
-      <div id="printers-empty" class="empty" hidden>
-        <svg class="i empty-icon"><use href="#i-printer"/></svg>
-        <p class="empty-title">Chưa có máy in</p>
-        <p class="empty-text">Thêm máy in vào cấu hình cầu nối trên Redmi, dữ liệu sẽ hiện ở đây.</p>
+      <div class="printers-layout">
+        <div class="printer-col">
+          <div id="printers" class="printer-grid"></div>
+          <div id="printers-empty" class="empty" hidden>
+            <svg class="i empty-icon"><use href="#i-printer"/></svg>
+            <p class="empty-title">Chưa có máy in</p>
+            <p class="empty-text">Thêm máy in vào cấu hình cầu nối trên Redmi, dữ liệu sẽ hiện ở đây.</p>
+          </div>
+        </div>
+        <!-- Printer detail: docked on the right on wide screens, a modal dialog otherwise -->
+    <dialog id="detail" class="dialog dialog-detail" aria-labelledby="detail-title">
+      <div class="detail-head">
+        <div class="detail-heading">
+          <span id="detail-status" class="status-pill"></span>
+          <div>
+            <h2 id="detail-title" class="dialog-title"></h2>
+            <p id="detail-sub" class="dialog-sub"></p>
+          </div>
+        </div>
+        <button type="button" class="icon-btn" data-close aria-label="Đóng" data-tip="Đóng">
+          <svg class="i"><use href="#i-x"/></svg>
+        </button>
+      </div>
+      <div class="detail-body">
+        <div class="detail-left">
+          <figure class="detail-media">
+            <img id="detail-img" alt="">
+            <figcaption id="detail-caption" class="glass num"></figcaption>
+            <span id="live-state" class="live-state glass num" role="status" hidden></span>
+            <button id="btn-live" type="button" class="live-toggle" aria-pressed="false" aria-label="Xem trực tiếp">
+              <svg class="i" data-live="off"><use href="#i-video"/></svg>
+              <svg class="i" data-live="on" hidden><use href="#i-square"/></svg>
+              <span class="live-toggle-label">Trực tiếp</span>
+            </button>
+          </figure>
+          <div id="detail-thumbs" class="thumbs" role="listbox" aria-label="Ảnh trước đó"></div>
+        </div>
+
+        <aside class="detail-side">
+          <section class="ctl" aria-labelledby="h-controls">
+            <h3 id="h-controls" class="eyebrow">Điều khiển</h3>
+            <div class="ctl-buttons">
+              <button type="button" class="ctl-btn" data-cmd="pause" aria-label="Tạm dừng" data-tip="Tạm dừng"><svg class="i"><use href="#i-pause"/></svg></button>
+              <button type="button" class="ctl-btn" data-cmd="resume" aria-label="Tiếp tục" data-tip="Tiếp tục"><svg class="i"><use href="#i-play"/></svg></button>
+              <button type="button" class="ctl-btn ctl-danger" data-cmd="stop" aria-label="Dừng in" data-tip="Dừng in"><svg class="i"><use href="#i-octagon-x"/></svg></button>
+              <span class="ctl-sep" aria-hidden="true"></span>
+              <button type="button" class="ctl-btn" data-cmd="light" id="ctl-light" aria-label="Bật đèn" data-tip="Bật đèn">
+                <svg class="i" data-light="on"><use href="#i-lightbulb"/></svg>
+                <svg class="i" data-light="off" hidden><use href="#i-lightbulb-off"/></svg>
+              </button>
+            </div>
+            <div class="speed">
+              <span class="speed-label">Tốc độ <b id="speed-current">--</b></span>
+              <div class="segmented segmented-icons" role="group" aria-label="Tốc độ in">
+                <button type="button" class="seg" data-cmd="speed" data-level="1" aria-label="Êm" data-tip="Êm"><svg class="i"><use href="#i-turtle"/></svg></button>
+                <button type="button" class="seg" data-cmd="speed" data-level="2" aria-label="Chuẩn" data-tip="Chuẩn"><svg class="i"><use href="#i-gauge"/></svg></button>
+                <button type="button" class="seg" data-cmd="speed" data-level="3" aria-label="Thể thao" data-tip="Thể thao"><svg class="i"><use href="#i-zap"/></svg></button>
+                <button type="button" class="seg" data-cmd="speed" data-level="4" aria-label="Siêu tốc" data-tip="Siêu tốc"><svg class="i"><use href="#i-rocket"/></svg></button>
+              </div>
+            </div>
+            <p id="ctl-status" class="ctl-status" role="status"></p>
+          </section>
+
+          <div id="detail-vision" class="note"></div>
+
+          <section>
+            <h3 class="eyebrow">Thông số</h3>
+            <dl id="detail-metrics" class="kv"></dl>
+          </section>
+        </aside>
+      </div>
+
+      <div class="detail-lower">
+        <section>
+          <h3 class="eyebrow">Cảnh báo của máy này</h3>
+          <ul id="detail-alerts" class="alert-list alert-list-compact"></ul>
+          <p id="detail-alerts-empty" class="muted" hidden>Không có cảnh báo cần xử lý.</p>
+        </section>
+        <section>
+          <h3 class="eyebrow">Hoạt động gần đây</h3>
+          <ol id="detail-events" class="timeline timeline-compact"></ol>
+          <p id="detail-events-empty" class="muted" hidden>Chưa có hoạt động.</p>
+        </section>
+      </div>
+    </dialog>
       </div>
     </section>
 
@@ -220,83 +321,6 @@
     </section>
   </main>
 </div>
-
-<!-- Printer detail -->
-<dialog id="detail" class="dialog dialog-detail" aria-labelledby="detail-title">
-  <div class="detail-head">
-    <div class="detail-heading">
-      <span id="detail-status" class="status-pill"></span>
-      <div>
-        <h2 id="detail-title" class="dialog-title"></h2>
-        <p id="detail-sub" class="dialog-sub"></p>
-      </div>
-    </div>
-    <button type="button" class="icon-btn" data-close aria-label="Đóng" data-tip="Đóng">
-      <svg class="i"><use href="#i-x"/></svg>
-    </button>
-  </div>
-  <div class="detail-body">
-    <div class="detail-left">
-      <figure class="detail-media">
-        <img id="detail-img" alt="">
-        <figcaption id="detail-caption" class="glass num"></figcaption>
-        <span id="live-state" class="live-state glass num" role="status" hidden></span>
-        <button id="btn-live" type="button" class="live-toggle" aria-pressed="false" aria-label="Xem trực tiếp">
-          <svg class="i" data-live="off"><use href="#i-video"/></svg>
-          <svg class="i" data-live="on" hidden><use href="#i-square"/></svg>
-          <span class="live-toggle-label">Trực tiếp</span>
-        </button>
-      </figure>
-      <div id="detail-thumbs" class="thumbs" role="listbox" aria-label="Ảnh trước đó"></div>
-    </div>
-
-    <aside class="detail-side">
-      <section class="ctl" aria-labelledby="h-controls">
-        <h3 id="h-controls" class="eyebrow">Điều khiển</h3>
-        <div class="ctl-buttons">
-          <button type="button" class="ctl-btn" data-cmd="pause" aria-label="Tạm dừng" data-tip="Tạm dừng"><svg class="i"><use href="#i-pause"/></svg></button>
-          <button type="button" class="ctl-btn" data-cmd="resume" aria-label="Tiếp tục" data-tip="Tiếp tục"><svg class="i"><use href="#i-play"/></svg></button>
-          <button type="button" class="ctl-btn ctl-danger" data-cmd="stop" aria-label="Dừng in" data-tip="Dừng in"><svg class="i"><use href="#i-octagon-x"/></svg></button>
-          <span class="ctl-sep" aria-hidden="true"></span>
-          <button type="button" class="ctl-btn" data-cmd="light" id="ctl-light" aria-label="Bật đèn" data-tip="Bật đèn">
-            <svg class="i" data-light="on"><use href="#i-lightbulb"/></svg>
-            <svg class="i" data-light="off" hidden><use href="#i-lightbulb-off"/></svg>
-          </button>
-        </div>
-        <div class="speed">
-          <span class="speed-label">Tốc độ <b id="speed-current">--</b></span>
-          <div class="segmented segmented-icons" role="group" aria-label="Tốc độ in">
-            <button type="button" class="seg" data-cmd="speed" data-level="1" aria-label="Êm" data-tip="Êm"><svg class="i"><use href="#i-turtle"/></svg></button>
-            <button type="button" class="seg" data-cmd="speed" data-level="2" aria-label="Chuẩn" data-tip="Chuẩn"><svg class="i"><use href="#i-gauge"/></svg></button>
-            <button type="button" class="seg" data-cmd="speed" data-level="3" aria-label="Thể thao" data-tip="Thể thao"><svg class="i"><use href="#i-zap"/></svg></button>
-            <button type="button" class="seg" data-cmd="speed" data-level="4" aria-label="Siêu tốc" data-tip="Siêu tốc"><svg class="i"><use href="#i-rocket"/></svg></button>
-          </div>
-        </div>
-        <p id="ctl-status" class="ctl-status" role="status"></p>
-      </section>
-
-      <div id="detail-vision" class="note"></div>
-
-      <section>
-        <h3 class="eyebrow">Thông số</h3>
-        <dl id="detail-metrics" class="kv"></dl>
-      </section>
-    </aside>
-  </div>
-
-  <div class="detail-lower">
-    <section>
-      <h3 class="eyebrow">Cảnh báo của máy này</h3>
-      <ul id="detail-alerts" class="alert-list alert-list-compact"></ul>
-      <p id="detail-alerts-empty" class="muted" hidden>Không có cảnh báo cần xử lý.</p>
-    </section>
-    <section>
-      <h3 class="eyebrow">Hoạt động gần đây</h3>
-      <ol id="detail-events" class="timeline timeline-compact"></ol>
-      <p id="detail-events-empty" class="muted" hidden>Chưa có hoạt động.</p>
-    </section>
-  </div>
-</dialog>
 
 <!-- Settings -->
 <dialog id="settings" class="dialog dialog-settings" aria-labelledby="settings-title">

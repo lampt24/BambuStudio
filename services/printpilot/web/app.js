@@ -10,6 +10,8 @@
   const STALE_IMAGE_SEC = 360;
 
   const $ = (id) => document.getElementById(id);
+  // Wide screens show printer details docked next to the list instead of a modal
+  const WIDE = window.matchMedia('(min-width: 1200px)');
   const el = (tag, cls, text) => {
     const node = document.createElement(tag);
     if (cls) node.className = cls;
@@ -229,6 +231,50 @@
     [...root.children].forEach((card) => {
       if (!seen.has(card.dataset.printer)) card.remove();
     });
+    markSelected();
+    renderNavPrinters();
+    const navCount = $('nav-printers-count');
+    navCount.hidden = !printers.length;
+    navCount.textContent = String(printers.length);
+
+    // Docked layout always shows one printer: keep the selection valid
+    if (WIDE.matches && printers.length && !printers.some((p) => p.printer_id === state.detailPrinterId)) {
+      openDetail(printers[0].printer_id);
+    }
+  }
+
+  function markSelected() {
+    const docked = WIDE.matches && $('detail').open;
+    document.querySelectorAll('#printers .printer').forEach((c) => {
+      c.classList.toggle('selected', docked && c.dataset.printer === state.detailPrinterId);
+    });
+    document.querySelectorAll('#nav-printers .nav-printer').forEach((b) => {
+      b.classList.toggle('selected', docked && b.dataset.printer === state.detailPrinterId);
+    });
+  }
+
+  function renderNavPrinters() {
+    const root = $('nav-printers');
+    root.textContent = '';
+    (state.data.printers || []).forEach((p) => {
+      const status = printerStatus(p);
+      const t = p.telemetry || {};
+      const li = el('li');
+      const b = el('button', 'nav-printer');
+      b.type = 'button';
+      b.dataset.printer = p.printer_id;
+      b.dataset.status = status;
+      const right = status === 'printing' && typeof t.progress === 'number' ? `${t.progress}%` : STATUS[status];
+      b.append(el('span', 'status-dot'), el('span', 'nav-printer-name', printerName(p)), el('span', 'nav-printer-meta', right));
+      b.title = `${printerName(p)}: ${STATUS[status]}`;
+      b.addEventListener('click', () => {
+        if (currentTab() !== 'printers') location.hash = '#printers';
+        openDetail(p.printer_id);
+      });
+      li.appendChild(b);
+      root.appendChild(li);
+    });
+    markSelected();
   }
 
   function buildPrinterCard(printerId) {
@@ -550,6 +596,8 @@
     const openIds = new Set([...root.querySelectorAll('details[open]')].map((d) => d.dataset.id));
     root.textContent = '';
     $('analyses-empty').hidden = items.length > 0;
+    $('nav-ai-count').hidden = !items.length;
+    $('nav-ai-count').textContent = String(items.length);
 
     items.slice(0, 20).forEach((a) => {
       const li = el('li');
@@ -615,10 +663,39 @@
     }
     state.detailPrinterId = printerId;
     state.detailSnapshotId = null;
-    renderDetail();
     const dlg = $('detail');
-    if (!dlg.open) dlg.showModal();
+    const docked = WIDE.matches;
+    if (dlg.open && dlg.classList.contains('docked') !== docked) closeDetailKeepSelection();
+    dlg.classList.toggle('docked', docked);
+    renderDetail();
+    if (!dlg.open) {
+      if (docked) {
+        dlg.show();
+        // show() focuses the first control; keep focus on the list instead
+        if (dlg.contains(document.activeElement)) document.activeElement.blur();
+      } else {
+        dlg.showModal();
+      }
+    }
+    markSelected();
     if (live) startLive(printerId);
+  }
+
+  function closeDetailKeepSelection() {
+    const id = state.detailPrinterId;
+    $('detail').close();          // 'close' handler stops live view and clears the selection
+    state.detailPrinterId = id;
+  }
+
+  function onLayoutChange() {
+    const dlg = $('detail');
+    if (WIDE.matches) {
+      const id = state.detailPrinterId || ((state.data.printers || [])[0] || {}).printer_id;
+      if (id) openDetail(id);
+    } else if (dlg.open && dlg.classList.contains('docked')) {
+      dlg.close();
+    }
+    markSelected();
   }
 
   // ---------------------------------------------------------------------------
@@ -1129,6 +1206,8 @@
   function renderUser() {
     const chip = $('user-chip');
     $('btn-settings').hidden = !(state.tsUser || state.token);
+    $('user-name').textContent = state.tsUser || (state.token ? 'Mã quản lý' : '');
+    $('user-method').textContent = state.tsUser ? 'Tailscale' : (state.token ? 'Đăng nhập bằng mã' : '');
     if (state.tsUser) {
       chip.textContent = state.tsUser.slice(0, 1);
       chip.title = `${state.tsUser} (Tailscale)`;
@@ -1225,6 +1304,7 @@
       else a.removeAttribute('aria-current');
     });
     document.title = tab === 'printers' ? 'PrintPilot' : `${TAB_TITLE[tab]} · PrintPilot`;
+    if (tab !== 'printers' && state.live) stopLive();
     window.scrollTo(0, 0);
   }
 
@@ -1243,8 +1323,9 @@
 
     const detail = $('detail');
     detail.querySelector('[data-close]').addEventListener('click', () => detail.close());
-    detail.addEventListener('click', (e) => { if (e.target === detail) detail.close(); });
-    detail.addEventListener('close', () => { stopLive(); state.detailPrinterId = null; });
+    detail.addEventListener('click', (e) => { if (e.target === detail && !detail.classList.contains('docked')) detail.close(); });
+    WIDE.addEventListener('change', onLayoutChange);
+    detail.addEventListener('close', () => { stopLive(); state.detailPrinterId = null; markSelected(); });
     $('btn-live').addEventListener('click', () => {
       if (state.live && state.live.printerId === state.detailPrinterId) stopLive();
       else if (state.detailPrinterId) startLive(state.detailPrinterId);
