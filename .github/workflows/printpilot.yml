@@ -6,13 +6,19 @@ on:
   workflow_dispatch:
     inputs:
       native:
-        description: Build Windows and macOS clients
+        description: Build native clients
         type: boolean
         default: true
+      platforms:
+        description: Which native clients to build
+        type: choice
+        options: [all, windows, macos]
+        default: all
 permissions:
   contents: read
 concurrency:
-  group: printpilot-${{ github.ref }}
+  # Separate groups so a push never cancels a long native build
+  group: printpilot-${{ github.ref }}-${{ github.event_name }}
   cancel-in-progress: true
 jobs:
   services:
@@ -26,7 +32,7 @@ jobs:
       - run: python -m unittest discover -s services/printpilot/bridge -p 'test_*.py' -v
       - run: find services/printpilot/web -name '*.js' -exec node --check {} \;
   windows:
-    if: github.event_name == 'workflow_dispatch' && inputs.native
+    if: github.event_name == 'workflow_dispatch' && inputs.native && inputs.platforms != 'macos'
     runs-on: windows-2022
     timeout-minutes: 180
     steps:
@@ -43,6 +49,24 @@ jobs:
         run: |
           cmake -S deps -B deps/build -G "Visual Studio 17 2022" -A x64 -DDESTDIR="$pwd/deps/build/BambuStudio_dep" -DCMAKE_BUILD_TYPE=Release -DDEP_DEBUG=OFF
           cmake --build deps/build --config Release --parallel 3
+      - name: Pre-extract Node.js for DeviceWeb
+        # Upstream CMake extracts via Windows PowerShell 5.1, which inherits
+        # pwsh 7's PSModulePath on GitHub runners and silently fails
+        # Expand-Archive. Extract here with pwsh into the cache CMake checks.
+        shell: pwsh
+        run: |
+          $cm = Get-Content src/slic3r/GUI/DeviceWeb/CMakeLists.txt -Raw
+          $v = [regex]::Match($cm, 'NODE_VERSION "([0-9.]+)"').Groups[1].Value
+          $hash = [regex]::Match($cm, 'win-x64\.zip"\)[\s\S]*?NODE_HASH "([0-9a-f]{64})"').Groups[1].Value
+          if (-not $v -or -not $hash) { throw 'Node version/hash not found in DeviceWeb CMakeLists' }
+          $dir = Join-Path (Split-Path $env:GITHUB_WORKSPACE) 'node-cache'
+          New-Item -ItemType Directory -Force $dir | Out-Null
+          $zip = Join-Path $dir "node-v$v-win-x64.zip"
+          Invoke-WebRequest "https://nodejs.org/dist/v$v/node-v$v-win-x64.zip" -OutFile $zip
+          if ((Get-FileHash $zip -Algorithm SHA256).Hash.ToLower() -ne $hash) { throw 'Node.js archive hash mismatch' }
+          Expand-Archive $zip -DestinationPath $dir -Force
+          Remove-Item $zip
+          if (-not (Test-Path (Join-Path $dir "node-v$v-win-x64/node.exe"))) { throw 'node.exe missing after extract' }
       - name: Build and package
         run: |
           $sdk = (Get-ChildItem 'C:/Program Files (x86)/Windows Kits/10/Include' -Directory | Where-Object Name -Match '^10\.' | Sort-Object Name -Descending | Select-Object -First 1).FullName
@@ -56,7 +80,7 @@ jobs:
           retention-days: 1
           if-no-files-found: error
   macos:
-    if: github.event_name == 'workflow_dispatch' && inputs.native
+    if: github.event_name == 'workflow_dispatch' && inputs.native && inputs.platforms != 'windows'
     runs-on: macos-26
     timeout-minutes: 180
     steps:

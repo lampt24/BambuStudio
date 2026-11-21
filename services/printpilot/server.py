@@ -831,6 +831,7 @@ def ai_vision(cfg: dict, image_b64: str, context: dict) -> dict:
         "'ok' is true if the print looks normal. "
         "'issues' lists observed problems. "
         "'summary' is one sentence. "
+        "If Status is idle, judge only whether the bed is ready for the next print. "
         "Write 'issues' and 'summary' in Vietnamese."
     )
 
@@ -888,8 +889,9 @@ def ai_vision(cfg: dict, image_b64: str, context: dict) -> dict:
 # Alert / webhook helpers
 # ---------------------------------------------------------------------------
 
-def _dedup_key(source: str, device_id: str | None, message: str) -> str:
-    raw = f"{source}:{device_id or ''}:{message}"
+def _dedup_key(source: str, device_id: str | None, message: str,
+               printer_id: str | None = None) -> str:
+    raw = f"{source}:{device_id or ''}:{printer_id or ''}:{message}"
     return hashlib.sha256(raw.encode()).hexdigest()[:32]
 
 
@@ -900,7 +902,7 @@ def upsert_alert(conn: sqlite3.Connection, source: str, severity: str,
     Insert alert if dedup_key not already present and unacknowledged.
     Returns new alert id or None if deduped.
     """
-    dk = _dedup_key(source, device_id, message)
+    dk = _dedup_key(source, device_id, message, printer_id)
     existing = conn.execute(
         "SELECT id, acknowledged FROM alerts WHERE dedup_key=?", (dk,)
     ).fetchone()
@@ -1134,8 +1136,15 @@ class VisionWorker(threading.Thread):
             conn.execute("UPDATE vision_queue SET status='done' WHERE id=?", (queue_id,))
             conn.commit()
 
-            # Raise alert if issues found
-            if not result.get("ok"):
+            # Raise alert only while a job is active (idle-bed remarks are noise),
+            # and keep at most one open vision alert per printer: the model words
+            # the same issue differently each time, so message dedup is not enough.
+            active = row["snap_status"] in ("printing", "paused")
+            already_open = conn.execute(
+                "SELECT 1 FROM alerts WHERE source='vision' AND printer_id=? AND acknowledged=0 LIMIT 1",
+                (row["printer_id"],),
+            ).fetchone()
+            if not result.get("ok") and active and not already_open:
                 issues = result.get("issues", [])
                 msg = "Camera phát hiện sự cố: " + ("; ".join(issues) if issues else result.get("summary", "Có bất thường"))
                 alert_id = upsert_alert(
@@ -2003,6 +2012,14 @@ class PrintPilotHandler(http.server.BaseHTTPRequestHandler):
         self.send_response(200)
         self.send_header("Content-Type", mime)
         self.send_header("Content-Length", str(len(data)))
+        # Dashboard is fully self-hosted: lock it to same-origin resources
+        self.send_header("Content-Security-Policy",
+                         "default-src 'self'; img-src 'self' blob: data:; style-src 'self'; "
+                         "script-src 'self'; connect-src 'self'; frame-ancestors 'none'; "
+                         "base-uri 'none'; form-action 'self'")
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("Referrer-Policy", "no-referrer")
+        self.send_header("Cache-Control", "no-cache")
         self.end_headers()
         self.wfile.write(data)
 

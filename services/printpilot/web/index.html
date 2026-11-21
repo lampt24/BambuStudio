@@ -2,603 +2,112 @@
 <html lang="vi">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="description" content="Bảng điều khiển giám sát máy in 3D Bambu A1 và phân tích AI PrintPilot">
-  <title>PrintPilot - Giám Sát In 3D &amp; Phân Tích AI</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600;700&family=Fira+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>PrintPilot</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2310b981' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9V3h12v6'/%3E%3Crect x='3' y='9' width='18' height='8' rx='2'/%3E%3Cpath d='M7 17v4h10v-4'/%3E%3C/svg%3E">
   <link rel="stylesheet" href="style.css">
 </head>
-<body class="dashboard-body">
-  <a href="#main-content" class="skip-link">Chuyển đến nội dung chính</a>
+<body>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <a class="brand" href="/" aria-label="PrintPilot">
+        <span class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9V3h12v6"/><rect x="3" y="9" width="18" height="8" rx="2"/><path d="M7 17v4h10v-4"/></svg>
+        </span>
+        <span class="brand-name">PrintPilot</span>
+      </a>
 
-  <!-- Header / Navigation Bar -->
-  <header class="app-header" role="banner">
-    <div class="header-container">
-      <div class="brand-group">
-        <div class="brand-icon" aria-hidden="true">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/>
-            <path d="M6 9V3a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v6"/>
-            <rect x="6" y="14" width="12" height="8" rx="1"/>
-          </svg>
-        </div>
-        <div class="brand-text">
-          <h1 class="brand-title">PrintPilot</h1>
-          <span class="brand-subtitle">Giám Sát Bambu A1 &amp; Phân Tích AI</span>
-        </div>
-      </div>
+      <ul class="health" aria-label="Trạng thái hệ thống">
+        <li id="health-ai" class="health-item" data-state="unknown"><span class="dot" aria-hidden="true"></span>AI</li>
+        <li id="health-bridge" class="health-item" data-state="unknown"><span class="dot" aria-hidden="true"></span>Cầu nối</li>
+        <li id="health-notify" class="health-item" data-state="unknown"><span class="dot" aria-hidden="true"></span>Telegram</li>
+      </ul>
 
-      <!-- System Config Indicators -->
-      <div class="header-status-group" aria-label="Cấu hình hệ thống máy chủ">
-        <div id="cfg-ai" class="config-pill config-pill--off" title="Trạng thái phân tích AI">
-          <span class="config-dot" aria-hidden="true"></span>
-          <span class="config-label">AI: <strong class="config-val">Đang kiểm tra</strong></span>
-        </div>
-        <div id="cfg-vision" class="config-pill config-pill--off" title="Trạng thái phân tích thị giác">
-          <span class="config-dot" aria-hidden="true"></span>
-          <span class="config-label">Thị giác: <strong class="config-val">Đang kiểm tra</strong></span>
-        </div>
-        <div id="cfg-notify" class="config-pill config-pill--off" title="Trạng thái webhook thông báo">
-          <span class="config-dot" aria-hidden="true"></span>
-          <span class="config-label">Thông báo: <strong class="config-val">Đang kiểm tra</strong></span>
-        </div>
-      </div>
-
-      <!-- Action & Auth Controls -->
-      <div class="header-actions">
-        <div class="sync-status" aria-live="polite">
-          <span id="sync-indicator" class="sync-indicator sync-indicator--idle" aria-hidden="true"></span>
-          <span id="sync-text" class="sync-text">Chưa đồng bộ</span>
-        </div>
-
-        <div class="refresh-controls">
-          <label for="auto-refresh-select" class="sr-only">Tần suất tự động làm mới</label>
-          <select id="auto-refresh-select" class="form-select select-compact" title="Chu kỳ tự động làm mới">
-            <option value="10000" selected>10 giây</option>
-            <option value="30000">30 giây</option>
-            <option value="60000">1 phút</option>
-            <option value="0">Tắt tự động</option>
-          </select>
-
-          <button id="btn-manual-refresh" class="btn btn-secondary btn-icon" title="Làm mới ngay (Phím tắt: R)" aria-label="Làm mới dữ liệu">
-            <svg id="icon-refresh" class="icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/>
-            </svg>
-            <span class="btn-text">Làm mới</span>
-          </button>
-        </div>
-
-        <!-- Token session status / login trigger -->
-        <div class="auth-bar">
-          <div id="auth-info" class="auth-info" style="display: none;">
-            <span class="auth-chip" title="Phiên đăng nhập quản trị">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
-                <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-              </svg>
-              <span id="auth-token-preview" class="auth-token-preview">Quản trị</span>
-            </span>
-            <button id="btn-logout" class="btn btn-ghost btn-sm" title="Đăng xuất khỏi hệ thống" aria-label="Đăng xuất">
-              Đăng xuất
-            </button>
-          </div>
-          <button id="btn-show-login" class="btn btn-primary btn-sm" style="display: none;">
-            Đăng nhập
-          </button>
-        </div>
+      <div class="topbar-right">
+        <span id="sync-status" class="sync" aria-live="polite">Đang tải…</span>
+        <span id="user-chip" class="user-chip" hidden></span>
+        <button id="btn-logout" class="btn btn-ghost btn-sm" type="button" hidden>Đăng xuất</button>
       </div>
     </div>
   </header>
 
-  <!-- Global Alert Banner (Network / Stale / Error) -->
-  <div id="global-banner" class="global-banner" role="alert" aria-live="assertive" style="display: none;">
-    <div class="banner-content">
-      <svg class="banner-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-        <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/>
-        <line x1="12" y1="9" x2="12" y2="13"/>
-        <line x1="12" y1="17" x2="12.01" y2="17"/>
-      </svg>
-      <span id="banner-message" class="banner-message">Thông báo hệ thống</span>
-      <button id="banner-retry-btn" class="btn btn-sm btn-outline">Thử lại</button>
-    </div>
-  </div>
+  <div id="banner" class="banner" role="alert" hidden></div>
 
-  <!-- Mobile Navigation Bar -->
-  <nav class="mobile-nav" aria-label="Điều hướng trên thiết bị di động">
-    <button class="mobile-nav-btn active" data-target="section-camera">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-        <path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/>
-        <circle cx="12" cy="13" r="3"/>
-      </svg>
-      <span>Camera</span>
-    </button>
-    <button class="mobile-nav-btn" data-target="section-alerts">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-        <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
-        <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
-      </svg>
-      <span>Cảnh báo</span>
-      <span id="mobile-alert-count" class="badge-count" style="display: none;">0</span>
-    </button>
-    <button class="mobile-nav-btn" data-target="section-analyses">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-        <path d="m18 16 4-4-4-4"/>
-        <path d="m6 8-4 4 4 4"/>
-        <path d="m14.5 4-5 16"/>
-      </svg>
-      <span>Phân tích AI</span>
-    </button>
-    <button class="mobile-nav-btn" data-target="section-devices">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-        <rect x="4" y="4" width="16" height="16" rx="2" ry="2"/>
-        <rect x="9" y="9" width="6" height="6"/>
-        <line x1="9" y1="1" x2="9" y2="4"/>
-        <line x1="15" y1="1" x2="15" y2="4"/>
-        <line x1="9" y1="20" x2="9" y2="23"/>
-        <line x1="15" y1="20" x2="15" y2="23"/>
-        <line x1="20" y1="9" x2="23" y2="9"/>
-        <line x1="20" y1="14" x2="23" y2="14"/>
-        <line x1="1" y1="9" x2="4" y2="9"/>
-        <line x1="1" y1="14" x2="4" y2="14"/>
-      </svg>
-      <span>Thiết bị</span>
-    </button>
-  </nav>
-
-  <!-- Main Content Layout -->
-  <main id="main-content" class="main-layout" role="main">
-    <!-- Top Summary Banner: Quick status counts -->
-    <div class="summary-cards-row">
-      <div class="summary-card">
-        <div class="summary-card-header">
-          <span class="summary-card-title">Ảnh Camera Mới Nhất</span>
-          <span id="stat-cam-freshness" class="badge badge-muted">Chưa có</span>
-        </div>
-        <div id="stat-cam-time" class="summary-card-value font-mono">--:--:--</div>
-        <div id="stat-cam-sub" class="summary-card-sub">Thời điểm chụp thực tế</div>
+  <main class="page">
+    <section aria-labelledby="h-printers">
+      <div class="section-head">
+        <h1 id="h-printers" class="section-title">Máy in</h1>
+        <span id="printers-meta" class="section-meta"></span>
       </div>
-
-      <div class="summary-card">
-        <div class="summary-card-header">
-          <span class="summary-card-title">Cảnh Báo Hoạt Động</span>
-          <span id="stat-alerts-badge" class="badge badge-muted">Không có cảnh báo</span>
-        </div>
-        <div id="stat-alerts-count" class="summary-card-value font-mono">0</div>
-        <div class="summary-card-sub">Cảnh báo chưa xác nhận</div>
-      </div>
-
-      <div class="summary-card">
-        <div class="summary-card-header">
-          <span class="summary-card-title">Phân Tích AI Đã Thực Hiện</span>
-          <span class="badge badge-navy">Tổng số</span>
-        </div>
-        <div id="stat-analyses-count" class="summary-card-value font-mono">0</div>
-        <div class="summary-card-sub">Lần điều chỉnh thông số</div>
-      </div>
-
-      <div class="summary-card">
-        <div class="summary-card-header">
-          <span class="summary-card-title">Thiết Bị &amp; Cầu Nối</span>
-          <span id="stat-devices-badge" class="badge badge-muted">Chưa kết nối</span>
-        </div>
-        <div id="stat-devices-count" class="summary-card-value font-mono">0</div>
-        <div class="summary-card-sub">Thiết bị đang gửi tín hiệu</div>
-      </div>
-    </div>
-
-    <!-- SECTION: Printer fleet -->
-    <section id="section-printers" class="card dashboard-section printers-section" aria-labelledby="heading-printers">
-      <div class="card-header">
-        <div class="section-title-wrap">
-          <div class="section-icon" aria-hidden="true">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/>
-            </svg>
-          </div>
-          <div>
-            <h2 id="heading-printers" class="card-title">Máy In</h2>
-            <p class="card-subtitle">Chọn một máy để xem camera và thông số chi tiết</p>
-          </div>
-        </div>
-        <div class="card-header-actions">
-          <span id="printers-count-badge" class="badge badge-muted">0 máy</span>
-        </div>
-      </div>
-      <div class="card-body">
-        <div id="printers-empty" class="printers-empty">Chưa có máy in nào gửi dữ liệu. Thêm máy in vào cấu hình cầu nối trên Redmi.</div>
-        <div id="printers-grid" class="printers-grid" role="listbox" aria-label="Danh sách máy in"></div>
-      </div>
+      <div id="printers" class="printer-grid"></div>
+      <p id="printers-empty" class="empty" hidden>Chưa có máy in nào gửi dữ liệu. Thêm máy in vào cấu hình cầu nối trên Redmi.</p>
     </section>
 
-    <!-- Dual Column Grid -->
-    <div class="dashboard-grid">
-
-      <!-- LEFT COLUMN: Camera Feed & Devices -->
-      <div class="grid-column grid-column--primary">
-
-        <!-- SECTION: Camera Snapshot Viewport -->
-        <section id="section-camera" class="card dashboard-section" aria-labelledby="heading-camera">
-          <div class="card-header">
-            <div class="section-title-wrap">
-              <div class="section-icon" aria-hidden="true">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/>
-                  <circle cx="12" cy="13" r="3"/>
-                </svg>
-              </div>
-              <div>
-                <h2 id="heading-camera" class="card-title">Camera Giám Sát In 3D</h2>
-                <p class="card-subtitle">Ảnh chụp định kỳ 120 giây từ cầu nối camera</p>
-              </div>
-            </div>
-
-            <div class="card-header-actions">
-              <span id="camera-freshness-badge" class="badge badge-unknown" title="Trạng thái độ tươi mới của ảnh">
-                Không rõ
-              </span>
-              <button id="btn-expand-snapshot" class="btn btn-ghost btn-sm btn-icon" title="Xem ảnh kích thước đầy đủ" aria-label="Mở rộng ảnh" disabled>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                  <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/>
-                </svg>
-              </button>
-            </div>
+    <div class="columns">
+      <section class="panel" aria-labelledby="h-alerts">
+        <div class="panel-head">
+          <h2 id="h-alerts" class="panel-title">Cảnh báo <span id="alerts-count" class="count" hidden></span></h2>
+          <div class="segmented" role="group" aria-label="Lọc cảnh báo">
+            <button type="button" class="seg" data-filter="open" aria-pressed="true">Chưa xử lý</button>
+            <button type="button" class="seg" data-filter="all" aria-pressed="false">Tất cả</button>
           </div>
+        </div>
+        <ul id="alerts" class="list"></ul>
+        <p id="alerts-empty" class="empty" hidden>Không có cảnh báo cần xử lý.</p>
+      </section>
 
-          <div class="card-body">
-            <!-- Snapshot Viewport Box -->
-            <div class="camera-viewport-wrap">
-              <div id="camera-viewport" class="camera-viewport">
-                <!-- Loading State -->
-                <div id="camera-loading" class="camera-overlay-state" style="display: none;">
-                  <div class="spinner spinner-lg" aria-hidden="true"></div>
-                  <p class="overlay-text">Đang tải ảnh từ máy chủ...</p>
-                </div>
-
-                <!-- Empty State -->
-                <div id="camera-empty" class="camera-overlay-state">
-                  <svg class="empty-icon" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                    <line x1="2" y1="2" x2="22" y2="22"/>
-                    <path d="M10.41 10.41a2 2 0 1 0 2.83 2.83"/>
-                    <path d="M13.5 4h-4L7.5 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 1.25-.45"/>
-                    <path d="M21.75 16.5V9a2 2 0 0 0-2-2h-2.5L15 4h-1"/>
-                  </svg>
-                  <p class="empty-title">Chưa có ảnh chụp camera nào</p>
-                  <p class="empty-desc">Không có dữ liệu hình ảnh. Theo quy chuẩn: Chưa có ảnh mới đồng nghĩa trạng thái không rõ, không suy đoán an toàn.</p>
-                </div>
-
-                <!-- Image Element (Rendered securely via Object URL Blob) -->
-                <img id="camera-current-img" class="camera-img" alt="Ảnh chụp thực tế từ camera giám sát máy in 3D" style="display: none;">
-
-                <!-- Viewport Overlay: Actual Timestamp & Device ID -->
-                <div id="camera-hud" class="camera-hud" style="display: none;">
-                  <div class="hud-top">
-                    <div class="hud-chip">
-                      <span class="hud-dot" aria-hidden="true"></span>
-                      <span id="hud-device-id" class="font-mono">Thiết bị: --</span>
-                    </div>
-                    <div class="hud-chip">
-                      <span id="hud-printer-id" class="font-mono">Máy in: --</span>
-                    </div>
-                  </div>
-                  <div class="hud-bottom">
-                    <div class="hud-time-block">
-                      <span class="hud-label">Thời điểm chụp thực tế (Camera UTC):</span>
-                      <strong id="hud-captured-time" class="hud-time font-mono">--:--:--</strong>
-                      <span id="hud-captured-relative" class="hud-sub">--</span>
-                    </div>
-                    <div class="hud-time-block hud-time-block--secondary">
-                      <span class="hud-label">Máy chủ nhận:</span>
-                      <span id="hud-server-time" class="hud-sub font-mono">--</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <!-- Telemetry Overlay Strip -->
-            <div id="camera-telemetry-panel" class="telemetry-grid" style="display: none;">
-              <div class="telemetry-card">
-                <span class="telemetry-label">Trạng thái</span>
-                <span id="telemetry-status" class="telemetry-value font-mono">--</span>
-              </div>
-              <div class="telemetry-card">
-                <span class="telemetry-label">Nhiệt độ đầu in</span>
-                <span id="telemetry-nozzle" class="telemetry-value font-mono">--</span>
-              </div>
-              <div class="telemetry-card">
-                <span class="telemetry-label">Nhiệt độ bàn in</span>
-                <span id="telemetry-bed" class="telemetry-value font-mono">--</span>
-              </div>
-              <div class="telemetry-card">
-                <span class="telemetry-label">Tiến độ in</span>
-                <span id="telemetry-progress" class="telemetry-value font-mono">--</span>
-              </div>
-              <div class="telemetry-card">
-                <span class="telemetry-label">Lớp in hiện tại</span>
-                <span id="telemetry-layer" class="telemetry-value font-mono">--</span>
-              </div>
-              <div class="telemetry-card">
-                <span class="telemetry-label">Tốc độ quạt</span>
-                <span id="telemetry-fan" class="telemetry-value font-mono">--</span>
-              </div>
-            </div>
-
-            <!-- Vision Assessment Result (if available on snapshot) -->
-            <div id="vision-assessment-box" class="vision-box" style="display: none;">
-              <div class="vision-header">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                  <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/>
-                  <circle cx="12" cy="12" r="3"/>
-                </svg>
-                <span class="vision-title">Đánh Giá Thị Giác Máy Tính (Vision AI)</span>
-              </div>
-              <p id="vision-assessment-text" class="vision-text"></p>
-            </div>
-
-            <!-- Snapshot History Strip -->
-            <div class="snapshot-history-wrap">
-              <div class="history-header">
-                <span class="history-title">Lịch Sử Ảnh Chụp Gần Đây</span>
-                <span id="history-count" class="history-count">0 ảnh</span>
-              </div>
-              <div id="snapshot-thumbnails" class="thumbnail-strip" role="region" aria-label="Danh sách ảnh chụp gần đây">
-                <!-- Thumbnails rendered dynamically -->
-                <p id="thumbnails-empty" class="text-muted text-sm">Chưa có lịch sử ảnh chụp</p>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <!-- SECTION: Device Status & Bridge Heartbeats -->
-        <section id="section-devices" class="card dashboard-section" aria-labelledby="heading-devices">
-          <div class="card-header">
-            <div class="section-title-wrap">
-              <div class="section-icon" aria-hidden="true">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <rect x="4" y="4" width="16" height="16" rx="2" ry="2"/>
-                  <rect x="9" y="9" width="6" height="6"/>
-                  <line x1="9" y1="1" x2="9" y2="4"/>
-                  <line x1="15" y1="1" x2="15" y2="4"/>
-                  <line x1="9" y1="20" x2="9" y2="23"/>
-                  <line x1="15" y1="20" x2="15" y2="23"/>
-                  <line x1="20" y1="9" x2="23" y2="9"/>
-                  <line x1="20" y1="14" x2="23" y2="14"/>
-                  <line x1="1" y1="9" x2="4" y2="9"/>
-                  <line x1="1" y1="14" x2="4" y2="14"/>
-                </svg>
-              </div>
-              <div>
-                <h2 id="heading-devices" class="card-title">Trạng Thái Thiết Bị &amp; Nhịp Tim Cầu Nối</h2>
-                <p class="card-subtitle">Giám sát máy in Bambu A1 và cầu nối camera Redmi 9C</p>
-              </div>
-            </div>
-          </div>
-
-          <div class="card-body">
-            <div class="device-info-banner">
-              <span>Lưu ý: Máy in Bambu A1 duy trì kết nối đám mây để sử dụng ứng dụng Bambu Handy (không bắt buộc chế độ mạng cục bộ riêng biệt để đọc dữ liệu). Khả năng tương thích phiên bản firmware cần được kiểm chứng trên phần cứng thực tế.</span>
-            </div>
-            <div id="devices-container" class="devices-grid">
-              <!-- Rendered dynamically -->
-              <div id="devices-empty" class="empty-placeholder">
-                <p class="empty-title">Chưa có thiết bị nào kết nối</p>
-                <p class="empty-desc">Máy chủ chưa nhận được nhịp tim (heartbeat) từ cầu nối camera Redmi 9C hoặc máy in Bambu A1.</p>
-              </div>
-            </div>
-          </div>
-        </section>
-
-      </div>
-
-      <!-- RIGHT COLUMN: Alerts & AI Analyses -->
-      <div class="grid-column grid-column--secondary">
-
-        <!-- SECTION: Alerts & Acknowledgment -->
-        <section id="section-alerts" class="card dashboard-section" aria-labelledby="heading-alerts">
-          <div class="card-header">
-            <div class="section-title-wrap">
-              <div class="section-icon" aria-hidden="true">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
-                  <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
-                </svg>
-              </div>
-              <div>
-                <h2 id="heading-alerts" class="card-title">Cảnh Báo Vận Hành</h2>
-                <p class="card-subtitle">Phát hiện lỗi từ thị giác và sự cố thiết bị cần xử lý</p>
-              </div>
-            </div>
-
-            <!-- Filter Tabs for Alerts -->
-            <div class="filter-tab-group" role="tablist" aria-label="Lọc danh sách cảnh báo">
-              <button class="filter-tab active" data-filter="unack" role="tab" aria-selected="true">
-                Chưa xử lý (<span id="unack-count">0</span>)
-              </button>
-              <button class="filter-tab" data-filter="all" role="tab" aria-selected="false">
-                Tất cả
-              </button>
-            </div>
-          </div>
-
-          <div class="card-body">
-            <div id="alerts-list" class="alerts-stack" role="region" aria-live="polite">
-              <!-- Rendered dynamically -->
-              <div id="alerts-empty" class="empty-placeholder">
-                <svg class="empty-icon-sm" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                  <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
-                  <polyline points="22 4 12 14.01 9 11.01"/>
-                </svg>
-                <p class="empty-title">Không có cảnh báo nào</p>
-                <p class="empty-desc">Hiện không có cảnh báo nào được ghi nhận. Không có cảnh báo không đồng nghĩa an toàn khi chưa có ảnh chụp hoặc đánh giá thị giác.</p>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <!-- SECTION: AI Analyses & Settings Diffs -->
-        <section id="section-analyses" class="card dashboard-section" aria-labelledby="heading-analyses">
-          <div class="card-header">
-            <div class="section-title-wrap">
-              <div class="section-icon" aria-hidden="true">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="m18 16 4-4-4-4"/>
-                  <path d="m6 8-4 4 4 4"/>
-                  <path d="m14.5 4-5 16"/>
-                </svg>
-              </div>
-              <div>
-                <h2 id="heading-analyses" class="card-title">Phân Tích &amp; Tối Ưu Hóa AI</h2>
-                <p class="card-subtitle">Đề xuất thay đổi thiết lập in từ Bambu Studio</p>
-              </div>
-            </div>
-
-            <div class="card-header-actions">
-              <span id="analyses-count-badge" class="badge badge-navy">0 kết quả</span>
-            </div>
-          </div>
-
-          <div class="card-body">
-            <div id="analyses-list" class="analyses-stack">
-              <!-- Rendered dynamically -->
-              <div id="analyses-empty" class="empty-placeholder">
-                <svg class="empty-icon-sm" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                  <circle cx="12" cy="12" r="10"/>
-                  <line x1="12" y1="16" x2="12" y2="12"/>
-                  <line x1="12" y1="8" x2="12.01" y2="8"/>
-                </svg>
-                <p class="empty-title">Chưa có lượt phân tích nào</p>
-                <p class="empty-desc">Khi người dùng kích hoạt tối ưu từ Bambu Studio, tệp 3MF và đề xuất sẽ hiển thị tại đây.</p>
-              </div>
-            </div>
-          </div>
-        </section>
-
-      </div>
+      <section class="panel" aria-labelledby="h-analyses">
+        <div class="panel-head">
+          <h2 id="h-analyses" class="panel-title">Tối ưu thông số (AI)</h2>
+        </div>
+        <ul id="analyses" class="list"></ul>
+        <p id="analyses-empty" class="empty" hidden>Chưa có lượt phân tích. Bấm <b>AI auto setting</b> hoặc gửi in từ Bambu Studio (bản PrintPilot) để AI đề xuất thông số.</p>
+      </section>
     </div>
   </main>
 
-  <!-- Footer -->
-  <footer class="app-footer" role="contentinfo">
-    <div class="footer-container">
-      <p class="footer-text">
-        <strong>PrintPilot</strong> - Hệ thống giám sát máy in 3D và tối ưu thông số in.
-      </p>
-      <div class="footer-links font-mono text-sm">
-        <span>Mạng nội bộ bảo mật</span>
-        <span class="sep">&bull;</span>
-        <span>Bambu Studio 2.9.1 Fork</span>
-        <span class="sep">&bull;</span>
-        <span id="footer-client-time">Thời gian cục bộ: --</span>
+  <!-- Printer detail -->
+  <dialog id="detail" class="dialog dialog-wide" aria-labelledby="detail-title">
+    <div class="dialog-head">
+      <div>
+        <h2 id="detail-title" class="dialog-title"></h2>
+        <p id="detail-sub" class="dialog-sub"></p>
       </div>
+      <button type="button" class="btn btn-ghost btn-icon" data-close aria-label="Đóng">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
     </div>
-  </footer>
-
-  <!-- MODAL: Token Login Dialog -->
-  <div id="login-modal" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="login-title" style="display: none;">
-    <div class="modal-dialog">
-      <div class="modal-header">
-        <div class="modal-icon" aria-hidden="true">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
-            <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-          </svg>
-        </div>
-        <div>
-          <h2 id="login-title" class="modal-title">Xác Thực Người Quản Lý</h2>
-          <p class="modal-subtitle">Nhập mã xác thực để truy cập bảng điều khiển PrintPilot</p>
-        </div>
-      </div>
-
-      <form id="login-form" class="modal-form" novalidate>
-        <div class="form-group">
-          <label for="token-input" class="form-label">
-            Mã khóa truy cập (Access Token) <span class="required" aria-hidden="true">*</span>
-          </label>
-          <div class="input-password-wrap">
-            <input 
-              type="password" 
-              id="token-input" 
-              name="token" 
-              class="form-input font-mono" 
-              placeholder="Nhập mã truy cập..." 
-              autocomplete="current-password" 
-              required
-              aria-describedby="token-help"
-            >
-            <button type="button" id="btn-toggle-token" class="btn-toggle-eye" aria-label="Hiển thị hoặc ẩn mã truy cập">
-              <svg id="eye-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/>
-                <circle cx="12" cy="12" r="3"/>
-              </svg>
-            </button>
-          </div>
-          <p id="token-help" class="form-helper">
-            Mã khóa chỉ được lưu trong phiên làm việc hiện tại của trình duyệt.
-          </p>
-        </div>
-
-        <div id="login-error" class="form-error" role="alert" style="display: none;"></div>
-
-        <div class="modal-actions">
-          <button type="button" id="btn-cancel-login" class="btn btn-secondary">Đóng</button>
-          <button type="submit" id="btn-submit-login" class="btn btn-primary">
-            <span class="btn-text">Xác nhận &amp; Kết nối</span>
-            <span id="login-spinner" class="spinner spinner-sm" style="display: none;" aria-hidden="true"></span>
-          </button>
-        </div>
-      </form>
+    <div class="detail-body">
+      <figure class="detail-media">
+        <img id="detail-img" alt="">
+        <figcaption id="detail-caption"></figcaption>
+      </figure>
+      <aside class="detail-side">
+        <div id="detail-vision" class="vision"></div>
+        <dl id="detail-metrics" class="kv"></dl>
+      </aside>
     </div>
-  </div>
-
-        <div id="login-error" class="form-error" role="alert" style="display: none;"></div>
-
-        <div class="modal-actions">
-          <button type="button" id="btn-cancel-login" class="btn btn-secondary">Đóng</button>
-          <button type="submit" id="btn-submit-login" class="btn btn-primary">
-            <span class="btn-text">Xác nhận &amp; Kết nối</span>
-            <span id="login-spinner" class="spinner spinner-sm" style="display: none;" aria-hidden="true"></span>
-          </button>
-        </div>
-      </form>
+    <div class="detail-history">
+      <h3 class="mini-title">Lịch sử ảnh</h3>
+      <div id="detail-thumbs" class="thumbs" role="listbox" aria-label="Ảnh trước đó"></div>
     </div>
-  </div>
+  </dialog>
 
-  <!-- MODAL: Snapshot Lightbox View -->
-  <div id="lightbox-modal" class="modal-backdrop modal-backdrop--lightbox" role="dialog" aria-modal="true" aria-labelledby="lightbox-title" style="display: none;">
-    <div class="lightbox-dialog">
-      <div class="lightbox-header">
-        <div>
-          <h2 id="lightbox-title" class="lightbox-title">Chi Tiết Ảnh Chụp Thực Tế</h2>
-          <span id="lightbox-subtitle" class="lightbox-subtitle font-mono">--</span>
-        </div>
-        <button id="btn-close-lightbox" class="btn btn-ghost btn-icon" aria-label="Đóng cửa sổ phóng to">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <line x1="18" y1="6" x2="6" y2="18"/>
-            <line x1="6" y1="6" x2="18" y2="18"/>
-          </svg>
-        </button>
-      </div>
+  <!-- Token login (only when Tailscale identity is unavailable) -->
+  <dialog id="login" class="dialog" aria-labelledby="login-title">
+    <form id="login-form" method="dialog" class="login-form">
+      <h2 id="login-title" class="dialog-title">Đăng nhập</h2>
+      <p class="dialog-sub">Mở trang qua Tailscale bằng tài khoản được cấp quyền để vào thẳng, hoặc nhập mã quản lý.</p>
+      <label class="field">
+        <span>Mã quản lý</span>
+        <input id="login-token" type="password" autocomplete="current-password" required>
+      </label>
+      <p id="login-error" class="field-error" role="alert" hidden></p>
+      <button id="login-submit" class="btn btn-primary" type="submit">Đăng nhập</button>
+    </form>
+  </dialog>
 
-      <div class="lightbox-body">
-        <div class="lightbox-img-wrap">
-          <img id="lightbox-img" class="lightbox-img" alt="Ảnh chụp camera phóng to">
-        </div>
-        <div class="lightbox-meta">
-          <h3 class="meta-heading">Thông Số Khi Chụp</h3>
-          <div id="lightbox-telemetry" class="meta-grid">
-            <!-- Rendered dynamically -->
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Toast Notification Container -->
-  <div id="toast-container" class="toast-container" aria-live="polite"></div>
-
-  <!-- JavaScript Module -->
   <script src="app.js"></script>
 </body>
 </html>

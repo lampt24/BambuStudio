@@ -1715,5 +1715,53 @@ class TestPrinters(ServerTestCase):
         self.assertEqual(self._hb("a1-01", status="exploded"), 400)
 
 
+class TestVisionAlertGating(unittest.TestCase):
+    """Vision alerts: only during an active job, one open alert per printer."""
+
+    def setUp(self):
+        from server import open_db
+        self._tmp = tempfile.mkdtemp(prefix="pp_vision_")
+        self._db = os.path.join(self._tmp, "t.db")
+        self._conn = open_db(self._db)
+        self._img = os.path.join(self._tmp, "s.jpg")
+        with open(self._img, "wb") as fh:
+            fh.write(b"\xff\xd8\xff\xd9")
+        self._cfg = _make_config(self._tmp, ai_base_url="http://ai", ai_key="k", vision_model="v")
+
+    def _queue(self, status, printer="a1-01"):
+        sid, qid = str(uuid.uuid4()), str(uuid.uuid4())
+        self._conn.execute(
+            "INSERT INTO snapshots (id,created_at,device_id,printer_id,captured_at,status,image_path) VALUES (?,?,?,?,?,?,?)",
+            (sid, "2026-01-01T00:00:00Z", "redmi", printer, "2026-01-01T00:00:00Z", status, self._img))
+        self._conn.execute("INSERT INTO vision_queue (id,snapshot_id,queued_at,next_at) VALUES (?,?,?,?)",
+                           (qid, sid, "2000-01-01T00:00:00Z", "2000-01-01T00:00:00Z"))
+        self._conn.commit()
+
+    def _run(self, issue):
+        from unittest import mock
+        import server
+        with mock.patch.object(server, "ai_vision",
+                               return_value={"ok": False, "issues": [issue], "summary": issue}):
+            server.VisionWorker(self._cfg, self._db)._process_one(self._conn)
+
+    def _vision_alerts(self):
+        return self._conn.execute("SELECT * FROM alerts WHERE source='vision'").fetchall()
+
+    def test_idle_printer_no_alert(self):
+        self._queue("idle")
+        self._run("Còn sót nhựa cũ trên bàn in")
+        self.assertEqual(self._vision_alerts(), [])
+
+    def test_printing_alert_then_dedup_by_printer(self):
+        self._queue("printing")
+        self._run("Có sợi nhựa rối")
+        self._queue("printing")
+        self._run("Phát hiện nhựa bị rối như mì")
+        self.assertEqual(len(self._vision_alerts()), 1)
+        self._queue("printing", printer="a1-02")
+        self._run("Có sợi nhựa rối")
+        self.assertEqual(len(self._vision_alerts()), 2)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
