@@ -127,6 +127,21 @@ def ingest(db,printer,status,t,now):
         else: db.execute('UPDATE print_runs SET status=?,job_identity=COALESCE(job_identity,?),plate_index=COALESCE(plate_index,?) WHERE id=?',(status,identity,plate,active['id']))
         workshop.note_tray(db,dict(active),t)
 
+_STALE_REF=('.gcode','metadata/plate_','slice_info')
+_PACKAGE_ENTRY=re.compile(rb'<(?:[A-Za-z_][\w.-]*:)?(?:Relationship|Override)\b[^>]*?/>[ \t]*\r?\n?')
+def _drop_stale_entries(content):
+    """Remove .rels/[Content_Types] entries pointing at stale slice files, leaving every other byte as is.
+    Studio's 3MF reader matches tag names literally, so the XML must not be re-serialised (ElementTree adds ns0:)."""
+    def keep(m):
+        ref=re.search(rb'(?:Target|PartName)\s*=\s*["\']([^"\']*)',m.group(0))
+        ref=ref.group(1).decode('utf-8','replace').lower() if ref else ''
+        return b'' if any(k in ref for k in _STALE_REF) else m.group(0)
+    return _PACKAGE_ENTRY.sub(keep,content)
+
+def _setting_text(key,value):
+    text='%g'%float(value)
+    return text+'%' if key=='sparse_infill_density' else text
+
 def optimized(raw,changes,validate,extract):
     extract(raw)
     values={c['key']:c['value'] for c in changes if c['key'] not in tuning.SPECS}
@@ -150,7 +165,8 @@ def optimized(raw,changes,validate,extract):
                 elif any(k.encode() in data for k in touched): raise ValueError('Conflicting settings require Studio editing')
         for key,value in values.items():
             if key not in config: raise ValueError('Changed setting absent from global project: '+key)
-            config[key]=str(value)+('%' if key=='sparse_infill_density' else '')
+            # keep the project's shape: per-extruder settings are lists of strings
+            config[key]=[_setting_text(key,value)]*len(config[key]) if isinstance(config[key],list) and config[key] else _setting_text(key,value)
         for c in extended:
             if c['key'] not in config: raise ValueError('Changed setting absent from global project: '+c['key'])
             config[c['key']]=tuning.project_value(c['key'],c['value'],config[c['key']],c.get('filament_index'))
@@ -158,17 +174,14 @@ def optimized(raw,changes,validate,extract):
             for item in src.infolist():
                 lower=item.filename.lower()
                 if lower.endswith(('.gcode','.gcode.md5','.gcode.sha256')) or lower.startswith('metadata/plate_') or 'slice_info' in lower: continue
-                content=json.dumps(config).encode() if item.filename==target else src.read(item)
-                if lower.endswith('.rels') or lower=='[content_types].xml':
-                    root=ET.fromstring(content)
-                    for entry in list(root):
-                        ref=entry.attrib.get('Target',entry.attrib.get('PartName','')).lower()
-                        if '.gcode' in ref or 'metadata/plate_' in ref or 'slice_info' in ref: root.remove(entry)
-                    content=ET.tostring(root,encoding='utf-8',xml_declaration=True)
+                content=json.dumps(config,indent=4,ensure_ascii=False).encode() if item.filename==target else src.read(item)
+                if lower.endswith('.rels') or lower=='[content_types].xml': content=_drop_stale_entries(content)
                 dst.writestr(item,content)
     result=output.getvalue(); got=extract(result)['config']
     for key,value in values.items():
-        if float(str(got.get(key,'')).rstrip('%'))!=float(value): raise ValueError('Export verification failed: '+key)
+        stored=got.get(key,'')
+        stored=stored[0] if isinstance(stored,list) and stored else stored
+        if float(str(stored).rstrip('%'))!=float(value): raise ValueError('Export verification failed: '+key)
     for c in extended:
         stored=got.get(c['key'])
         if tuning.SPECS[c['key']]['scope']=='filament':

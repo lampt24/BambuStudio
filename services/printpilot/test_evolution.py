@@ -25,6 +25,20 @@ class ExportTests(unittest.TestCase):
         self.assertEqual(extract_3mf(result)['config']['sparse_infill_density'],'23%')
         with zipfile.ZipFile(io.BytesIO(result)) as z: self.assertFalse(any(n.endswith('.gcode') for n in z.namelist()))
         self.assertEqual(evolution.model_key(raw),evolution.model_key(result))
+    def test_studio_readable_package(self):
+        # Studio's 3MF reader matches tag names literally: no 'ns0:' prefixes; list settings keep their shape
+        src=io.BytesIO()
+        with zipfile.ZipFile(io.BytesIO(project()),'r') as z,zipfile.ZipFile(src,'w') as dst:
+            for n in z.namelist():
+                if n=='Metadata/project_settings.config':
+                    dst.writestr(n,json.dumps({'layer_height':'0.2','sparse_infill_density':'15%','outer_wall_speed':['50','50']},indent=4))
+                else: dst.writestr(n,z.read(n))
+            dst.writestr('_rels/.rels','<?xml version="1.0" encoding="UTF-8"?>\n<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">\n <Relationship Target="/3D/3dmodel.model" Id="rel-1" Type="http://schemas.microsoft.com/3dmanufacturing/2013/01/3dmodel"/>\n <Relationship Target="/Metadata/plate_1.png" Id="rel-2" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/thumbnail"/>\n</Relationships>')
+        result=evolution.optimized(src.getvalue(),[{'key':'outer_wall_speed','value':30.0}],lambda v:v,extract_3mf)
+        with zipfile.ZipFile(io.BytesIO(result)) as z:
+            rels=z.read('_rels/.rels').decode(); config=json.loads(z.read('Metadata/project_settings.config'))
+        self.assertNotIn('ns0',rels); self.assertIn('<Relationship Target="/3D/3dmodel.model"',rels); self.assertNotIn('plate_1.png',rels)
+        self.assertEqual(config['outer_wall_speed'],['30','30'])
     def test_override_rejected(self):
         with self.assertRaisesRegex(ValueError,'override'): evolution.optimized(project(override=True),[{'key':'layer_height','value':0.16}],validate_settings,extract_3mf)
     def test_real_profiles_and_rfid_fail_closed(self):
