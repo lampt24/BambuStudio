@@ -264,7 +264,7 @@ async function main() {
     const pBox = await page.locator('.printer-col').boundingBox();
     const dBox = await page.locator('#detail').boundingBox();
     assert.ok(dBox.x > pBox.x + pBox.width - 1, 'detail should sit to the right of the list');
-    await page.click('.nav-printer[data-printer="a1-02"]');
+    await second.click();
     await page.waitForFunction(() => document.getElementById('detail-title').textContent === 'A1 phải');
     assert.ok(await second.evaluate((c) => c.classList.contains('selected')));
     assert.strictEqual((await page.textContent('#nav-printers-count')).trim(), '2');
@@ -280,7 +280,7 @@ async function main() {
     await page.fill('#rename-input', 'Máy góc phòng');
     await page.press('#rename-input', 'Enter');
     await page.waitForFunction(() => document.getElementById('detail-title').textContent === 'Máy góc phòng');
-    await page.waitForFunction(() => document.querySelector('.nav-printer[data-printer="a1-02"]').textContent.includes('Máy góc phòng'));
+    await page.waitForFunction(() => [...document.querySelectorAll('.printer')].some((c) => c.textContent.includes('Máy góc phòng')));
     await page.click('#btn-rename');
     await page.fill('#rename-input', '');
     await page.press('#rename-input', 'Enter');
@@ -376,6 +376,10 @@ async function main() {
     assert.ok((await page.textContent('.feedback-context')).includes('Review evidence'));
     await page.unroute('**/api/state'); await page.reload(); await page.waitForSelector('.printer', {state: 'attached'});
     await tab('printers');
+    console.log('8a1. Removed sections stay removed');
+    assert.strictEqual(await page.locator('#nav-printers, .nav-printer').count(), 0, 'no printer list in the sidebar');
+    assert.ok(!(await page.evaluate(() => document.body.textContent)).includes('Kiểm tra trong Bambu Studio'));
+    assert.ok(!(await page.evaluate(() => document.body.textContent)).includes('3MF tối ưu giữ nguyên'));
     console.log('8b. Theme switch overrides the OS and persists');
     await page.emulateMedia({ colorScheme: 'dark' });
     const bg = () => page.evaluate(() => getComputedStyle(document.body).backgroundColor);

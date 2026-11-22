@@ -287,29 +287,6 @@ code { font-family: var(--mono); font-size: 0.92em; }
 .nav-item[aria-current="page"] .nav-count { background: var(--surface); color: var(--text-2); }
 .nav-badge { background: var(--error); color: #fff; box-shadow: 0 0 0 3px var(--error-soft); }
 
-.nav-sub { display: flex; flex-direction: column; gap: 1px; margin: 2px 0 4px 20px; padding-left: 14px; border-left: 1px solid var(--line); }
-.nav-sub:empty { display: none; }
-.nav-printer {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-  height: 30px;
-  padding: 0 8px;
-  border: 0;
-  border-radius: 7px;
-  background: transparent;
-  color: var(--text-2);
-  font-size: 12.5px;
-  text-align: left;
-}
-.nav-printer:hover { background: var(--side-hover); color: var(--text); }
-.nav-printer.selected { background: var(--side-active); color: var(--text); font-weight: 500; }
-.nav-printer-name { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.nav-printer-meta { color: var(--text-3); font-size: 11px; white-space: nowrap; }
-.nav-printer[data-status="printing"] .nav-printer-meta { color: var(--printing); font-family: var(--mono); }
-.nav-printer[data-status="error"] .nav-printer-meta { color: var(--error); }
-.nav-printer[data-status="paused"] .nav-printer-meta { color: var(--paused); }
 .nav-printer[data-status="idle"] .nav-printer-meta { color: var(--info); }
 .side-spacer { flex: 1; min-height: 16px; }
 
@@ -1319,7 +1296,7 @@ code { font-family: var(--mono); font-size: 0.92em; }
   }
   .brand { padding: 0 4px; }
   .brand-mark { width: 30px; height: 30px; }
-  .brand-sub, .nav-section, .nav-sub, .nav-count, .side-spacer, .user-text { display: none; }
+  .brand-sub, .nav-section, .nav-count, .side-spacer, .user-text { display: none; }
   .sys { order: 2; margin: 0 0 0 auto; padding: 0; border: 0; background: none; }
   .health { flex-direction: row; }
   .health-item { padding: 6px; }
@@ -1708,3 +1685,6 @@ code { font-family: var(--mono); font-size: 0.92em; }
   .spool-card .fil-row-actions, .care-task .fil-row-actions { grid-column: 1 / -1; flex-wrap: wrap; }
   .care-task { grid-template-columns: minmax(0, 1fr); }
 }
+
+/* Older analyses: result + optimized 3MF only, no model column */
+.analysis-body.analysis-body-compact { grid-template-columns: minmax(0, 1fr); }

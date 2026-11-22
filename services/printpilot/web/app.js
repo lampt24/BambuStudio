@@ -236,7 +236,6 @@
       if (!seen.has(card.dataset.printer)) card.remove();
     });
     markSelected();
-    renderNavPrinters();
     const navCount = $('nav-printers-count');
     navCount.hidden = !printers.length;
     navCount.textContent = String(printers.length);
@@ -252,33 +251,6 @@
     document.querySelectorAll('#printers .printer').forEach((c) => {
       c.classList.toggle('selected', docked && c.dataset.printer === state.detailPrinterId);
     });
-    document.querySelectorAll('#nav-printers .nav-printer').forEach((b) => {
-      b.classList.toggle('selected', docked && b.dataset.printer === state.detailPrinterId);
-    });
-  }
-
-  function renderNavPrinters() {
-    const root = $('nav-printers');
-    root.textContent = '';
-    (state.data.printers || []).forEach((p) => {
-      const status = printerStatus(p);
-      const t = p.telemetry || {};
-      const li = el('li');
-      const b = el('button', 'nav-printer');
-      b.type = 'button';
-      b.dataset.printer = p.printer_id;
-      b.dataset.status = status;
-      const right = status === 'printing' && typeof t.progress === 'number' ? `${t.progress}%` : STATUS[status];
-      b.append(el('span', 'status-dot'), el('span', 'nav-printer-name', printerName(p)), el('span', 'nav-printer-meta', right));
-      b.title = `${printerName(p)}: ${STATUS[status]}`;
-      b.addEventListener('click', () => {
-        if (currentTab() !== 'printers') location.hash = '#printers';
-        openDetail(p.printer_id);
-      });
-      li.appendChild(b);
-      root.appendChild(li);
-    });
-    markSelected();
   }
 
   function buildPrinterCard(printerId) {
@@ -825,7 +797,7 @@
     bOpt.addEventListener('click', () => downloadProject(a, bOpt, true));
     actions.append(bImg, b3d);
     const frame = el('div', 'preview-frame'); frame.append(stage, actions);
-    const downloads = el('div', 'analysis-downloads'); downloads.append(el('p', 'muted', bOpt.disabled ? 'Không có đề xuất hợp lệ để ghi vào 3MF.' : '3MF tối ưu giữ nguyên hình học, cần cắt lớp lại trước khi in.'), bDl, bOpt);
+    const downloads = el('div', 'analysis-downloads'); if (bOpt.disabled) downloads.appendChild(el('p', 'muted', 'Không có đề xuất hợp lệ để ghi vào 3MF.')); downloads.append(bDl, bOpt);
     wrap.downloads = downloads;
     const goal = el('div', 'model-goal');
     goal.append(el('div', 'eyebrow', 'MỤC TIÊU TỐI ƯU'));
@@ -874,7 +846,10 @@
     disposeViewers();
     root.textContent = '';
 
-    items.forEach((a) => {
+    items.forEach((a, index) => {
+      // Only the newest analysis gets the model preview, goal picker and print
+      // history; older ones show just the result and the optimized 3MF.
+      const full = index === 0;
       const li = el('li');
       const det = el('details', 'analysis');
       det.dataset.id = a.id;
@@ -892,10 +867,11 @@
       sum.append(ic, left, tag, icon('chevron-down', 'analysis-chevron'));
       det.appendChild(sum);
 
-      const body = el('div', 'analysis-body');
-      const preview = buildPreview(a);
+      const body = el('div', full ? 'analysis-body' : 'analysis-body analysis-body-compact');
+      const preview = full ? buildPreview(a) : null;
       const main = el('div', 'analysis-main');
-      main.append(preview.goal, el('div', 'eyebrow', 'KẾT QUẢ PHÂN TÍCH'));
+      if (preview) main.appendChild(preview.goal);
+      main.appendChild(el('div', 'eyebrow', 'KẾT QUẢ PHÂN TÍCH'));
       main.appendChild(el('h2', 'result-title', 'Thông số được đề xuất'));
       if (a.summary) { const callout = el('div', 'analysis-callout'); callout.append(el('span', 'ai-badge', 'AI'), el('p', a.status === 'error' ? 'analysis-summary analysis-error' : 'analysis-summary', a.summary)); main.appendChild(callout); }
       if (changes.length) {
@@ -929,6 +905,14 @@
       }
       const insightBox = buildInsight(a);
       if (insightBox) main.appendChild(insightBox);
+      if (!full) {
+        const bOpt = el('button', 'btn btn-primary', 'Tải 3MF tối ưu'); bOpt.type = 'button';
+        bOpt.disabled = a.status === 'error' || !changes.length;
+        bOpt.addEventListener('click', () => downloadProject(a, bOpt, true));
+        const downloads = el('div', 'analysis-downloads'); if (bOpt.disabled) downloads.appendChild(el('p', 'muted', 'Không có đề xuất hợp lệ để ghi vào 3MF.')); downloads.appendChild(bOpt);
+        main.appendChild(downloads); body.appendChild(main); det.appendChild(body); li.appendChild(det); root.appendChild(li);
+        return;
+      }
       const feedback = Array.isArray(a.feedback_context) ? a.feedback_context : [];
       const context = el('section', 'feedback-context');
       const contextHead = el('div', 'feedback-head'); contextHead.append(el('strong', '', 'Phản hồi AI đã tham khảo'), el('span', '', feedback.length ? `${feedback.length} lần in trước` : 'Chưa có'));
@@ -937,7 +921,7 @@
       feedback.forEach((r) => { const review = r.review || r; const item = el('div', 'feedback-item'); const top = el('div', 'feedback-top'); top.append(el('b', '', [r.relation === 'similar_shape' ? `Model tương tự (${Math.round((r.similarity || 0) * 100)}%)` : '', r.job_name, r.printer_id, r.material].filter(Boolean).join(' · ') || 'Lần in'), el('span', '', [review.rating ? `${review.rating}/5` : '', r.started_at ? clock(r.started_at, true) : ''].filter(Boolean).join(' · '))); item.appendChild(top); if (review.comment) item.appendChild(el('p', '', `“${review.comment}”`)); if ((review.issues || []).length) item.appendChild(el('small', '', review.issues.join(' · '))); context.appendChild(item); });
       context.appendChild(el('p', 'feedback-note', 'Phản hồi là ngữ cảnh tham khảo; đề xuất vẫn được kiểm tra theo giới hạn máy và thông số hợp lệ.'));
       main.appendChild(context);
-      const next = el('div', 'next-step'); next.append(el('h3', '', 'Kiểm tra trong Bambu Studio'), el('p', '', 'Mở 3MF tối ưu, cắt lớp lại và xem đường chạy trước khi gửi in.')); main.append(next, preview.downloads);
+      main.appendChild(preview.downloads);
       body.append(preview, main);
       det.appendChild(body);
       const history = el('section', 'model-print-history');
