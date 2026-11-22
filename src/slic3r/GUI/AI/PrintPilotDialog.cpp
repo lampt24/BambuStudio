@@ -26,6 +26,7 @@
 #include <wx/font.h>
 #include <wx/panel.h>
 #include <wx/timer.h>
+#include <wx/display.h>
 
 #include "slic3r/GUI/GUI_App.hpp"
 #include "slic3r/GUI/Plater.hpp"
@@ -43,17 +44,35 @@
 
 namespace Slic3r { namespace GUI { namespace AI {
 
+namespace {
+// Size a dialog to its content, in DPI-independent units, but never taller than
+// 85% (or wider than 90%) of the screen it opens on; the content area scrolls.
+void fit_to_screen(wxDialog* dlg, wxWindow* parent, int min_w_dip, int min_h_dip)
+{
+    dlg->Layout();
+    const wxSize best = dlg->GetBestSize();
+    const int display = wxDisplay::GetFromWindow(parent ? parent : dlg);
+    const wxRect area = wxDisplay(display == wxNOT_FOUND ? 0u : unsigned(display)).GetClientArea();
+    const int max_w = area.GetWidth() * 9 / 10, max_h = area.GetHeight() * 85 / 100;
+    const wxSize min_size(std::min(dlg->FromDIP(min_w_dip), max_w), std::min(dlg->FromDIP(min_h_dip), max_h));
+    dlg->SetMinSize(min_size);
+    dlg->SetSize(wxSize(std::clamp(best.GetWidth(), min_size.GetWidth(), max_w),
+                        std::clamp(best.GetHeight(), min_size.GetHeight(), max_h)));
+    dlg->Layout();
+    dlg->CentreOnParent(wxBOTH);
+}
+} // namespace
+
 // ===========================================================================
 // PrintPilotProgressDialog
 // ===========================================================================
 PrintPilotProgressDialog::PrintPilotProgressDialog(wxWindow* parent,
                                                    const std::string& trigger)
     : wxDialog(parent, wxID_ANY, _("PrintPilot AI Analysis"),
-               wxDefaultPosition, wxSize(400, 160),
+               wxDefaultPosition, wxDefaultSize,
                wxDEFAULT_DIALOG_STYLE & ~wxCLOSE_BOX)
     , m_pulse_timer(this)
 {
-    SetMinSize(wxSize(400, 160));
     auto* top = new wxBoxSizer(wxVERTICAL);
 
     wxString label = trigger == "send"
@@ -64,7 +83,7 @@ PrintPilotProgressDialog::PrintPilotProgressDialog(wxWindow* parent,
     top->Add(lbl, 0, wxALL | wxEXPAND, 12);
 
     m_gauge = new wxGauge(this, wxID_ANY, 100,
-                          wxDefaultPosition, wxSize(-1, 8), wxGA_HORIZONTAL);
+                          wxDefaultPosition, wxSize(-1, FromDIP(8)), wxGA_HORIZONTAL);
     top->Add(m_gauge, 0, wxLEFT | wxRIGHT | wxBOTTOM | wxEXPAND, 12);
 
         auto* note = new wxStaticText(this, wxID_ANY,
@@ -76,8 +95,7 @@ PrintPilotProgressDialog::PrintPilotProgressDialog(wxWindow* parent,
     top->Add(cancel_btn, 0, wxALIGN_CENTER | wxBOTTOM, 12);
 
     SetSizer(top);
-    Layout();
-    Centre(wxBOTH);
+    fit_to_screen(this, parent, 400, 160);
 
     cancel_btn->Bind(wxEVT_BUTTON, &PrintPilotProgressDialog::on_cancel_btn, this);
     Bind(wxEVT_TIMER, &PrintPilotProgressDialog::on_timer, this);
@@ -120,77 +138,83 @@ PrintPilotResultDialog::PrintPilotResultDialog(wxWindow* parent,
                                                const std::vector<SettingChange>& allowed,
                                                const std::vector<SettingChange>& manual)
     : wxDialog(parent, wxID_ANY, _("PrintPilot: AI Suggestions"),
-               wxDefaultPosition, wxSize(560, 460),
+               wxDefaultPosition, wxDefaultSize,
                wxDEFAULT_DIALOG_STYLE | wxRESIZE_BORDER)
 {
-    SetMinSize(wxSize(400, 300));
     auto* top = new wxBoxSizer(wxVERTICAL);
+    const int wrap = FromDIP(560);
 
-    // Summary
+    // Summary, warnings and changes share one scrolled area so the buttons below
+    // stay on screen however long the analysis is.
+    auto* scroll = new wxScrolledWindow(this, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxVSCROLL);
+    scroll->SetScrollRate(0, FromDIP(10));
+    auto* sv = new wxBoxSizer(wxVERTICAL);
+
     if (!result.summary.empty()) {
-        auto* lbl = new wxStaticText(this, wxID_ANY, wxString::FromUTF8(result.summary));
-        lbl->Wrap(500);
-        top->Add(lbl, 0, wxALL | wxEXPAND, 12);
+        auto* lbl = new wxStaticText(scroll, wxID_ANY, wxString::FromUTF8(result.summary));
+        lbl->Wrap(wrap);
+        sv->Add(lbl, 0, wxALL | wxEXPAND, FromDIP(10));
     }
 
-    // Warnings
     for (auto& w : result.warnings) {
-        auto* wlbl = new wxStaticText(this, wxID_ANY,
-            wxString("⚠ ") + wxString::FromUTF8(w));
+        auto* wlbl = new wxStaticText(scroll, wxID_ANY,
+            wxString::FromUTF8("\xE2\x9A\xA0 ") + wxString::FromUTF8(w));
         wlbl->SetForegroundColour(wxColour(200, 120, 0));
-        wlbl->Wrap(500);
-        top->Add(wlbl, 0, wxLEFT | wxRIGHT | wxBOTTOM | wxEXPAND, 10);
+        wlbl->Wrap(wrap);
+        sv->Add(wlbl, 0, wxLEFT | wxRIGHT | wxBOTTOM | wxEXPAND, FromDIP(8));
     }
 
     if (allowed.empty() && manual.empty()) {
-        auto* none = new wxStaticText(this, wxID_ANY,
+        auto* none = new wxStaticText(scroll, wxID_ANY,
             _("No applicable settings changes were proposed."));
         none->SetForegroundColour(wxSystemSettings::GetColour(wxSYS_COLOUR_GRAYTEXT));
-        top->Add(none, 0, wxALL, 12);
+        sv->Add(none, 0, wxALL, FromDIP(10));
     } else {
-        auto* hdr = new wxStaticText(this, wxID_ANY,
+        auto* hdr = new wxStaticText(scroll, wxID_ANY,
             _("Proposed changes (allowlisted settings only):"));
         hdr->SetFont(hdr->GetFont().MakeBold());
-        top->Add(hdr, 0, wxLEFT | wxRIGHT | wxTOP, 12);
-
-        auto* scroll = new wxScrolledWindow(this, wxID_ANY,
-                           wxDefaultPosition, wxSize(-1, 220));
-        scroll->SetScrollRate(0, 10);
-        auto* sv = new wxBoxSizer(wxVERTICAL);
+        sv->Add(hdr, 0, wxLEFT | wxRIGHT | wxTOP, FromDIP(10));
 
         auto add_rows = [&](const std::vector<SettingChange>& rows, bool by_hand) {
             for (auto& ch : rows) {
                 wxString row = wxString::Format(
-                    "  %s%s:  %s  →  %s%s",
+                    "%s%s:  %s  %s  %s%s",
                     wxString::FromUTF8(ch.key),
                     ch.scope == "filament" ? wxString::Format(" (filament %d)", ch.filament_index) : wxString(),
                     wxString::FromUTF8(ch.old_value),
+                    wxString::FromUTF8("\xE2\x86\x92"),
                     wxString::FromUTF8(ch.new_value),
                     by_hand ? wxString("   ") + _("(set by hand)") : wxString());
                 auto* row_lbl = new wxStaticText(scroll, wxID_ANY, row);
-                sv->Add(row_lbl, 0, wxLEFT | wxRIGHT | wxTOP, 6);
+                row_lbl->Wrap(wrap);
+                sv->Add(row_lbl, 0, wxLEFT | wxRIGHT | wxTOP, FromDIP(10));
 
                 for (const std::string* text : {&ch.reason, &ch.evidence}) {
                     if (text->empty()) continue;
                     auto* lbl = new wxStaticText(scroll, wxID_ANY,
-                        wxString::FromUTF8(text == &ch.evidence ? "    \xE2\x93\x98 " : "    ") + wxString::FromUTF8(*text));
+                        wxString::FromUTF8(text == &ch.evidence ? "\xE2\x93\x98 " : "") + wxString::FromUTF8(*text));
                     lbl->SetForegroundColour(wxSystemSettings::GetColour(wxSYS_COLOUR_GRAYTEXT));
-                    lbl->Wrap(480);
-                    sv->Add(lbl, 0, wxLEFT | wxBOTTOM, 20);
+                    lbl->Wrap(wrap - FromDIP(20));
+                    sv->Add(lbl, 0, wxLEFT | wxRIGHT, FromDIP(28));
                 }
             }
         };
         add_rows(allowed, false);
         add_rows(manual, true);
-        scroll->SetSizer(sv);
-        scroll->FitInside();
-        top->Add(scroll, 1, wxLEFT | wxRIGHT | wxEXPAND, 10);
+    }
+    sv->AddSpacer(FromDIP(10));
+    scroll->SetSizer(sv);
+    scroll->FitInside();
+    // Ask for the full content height so the dialog opens big enough; fit_to_screen caps it.
+    scroll->SetMinSize(sv->GetMinSize());
+    top->Add(scroll, 1, wxEXPAND);
 
+    if (!allowed.empty() || !manual.empty()) {
         auto* note = new wxStaticText(this, wxID_ANY,
             _("Applying will mark settings as dirty and require reslice before printing."));
         note->SetForegroundColour(wxColour(180, 60, 0));
-        note->Wrap(500);
-        top->Add(note, 0, wxALL, 10);
+        note->Wrap(wrap);
+        top->Add(note, 0, wxLEFT | wxRIGHT | wxTOP, FromDIP(10));
     }
 
     // Buttons
@@ -207,11 +231,12 @@ PrintPilotResultDialog::PrintPilotResultDialog(wxWindow* parent,
         apply_btn->Bind(wxEVT_BUTTON, &PrintPilotResultDialog::on_apply, this);
     }
 
-    top->Add(btn_sizer, 0, wxALIGN_RIGHT | wxALL, 12);
+    top->Add(btn_sizer, 0, wxALIGN_RIGHT | wxALL, FromDIP(12));
 
     SetSizer(top);
-    Layout();
-    Centre(wxBOTH);
+    fit_to_screen(this, parent, 480, 320);
+    // After sizing, let the scroll area shrink when the user makes the dialog smaller.
+    scroll->SetMinSize(wxSize(-1, FromDIP(80)));
 
     skip_btn->Bind(wxEVT_BUTTON, &PrintPilotResultDialog::on_skip, this);
     cancel_btn->Bind(wxEVT_BUTTON, [this](wxCommandEvent&) { EndModal(wxID_CANCEL); });
@@ -242,15 +267,15 @@ PrintPilotErrorDialog::PrintPilotErrorDialog(wxWindow* parent,
                                              const std::string& error,
                                              const std::string& trigger)
     : wxDialog(parent, wxID_ANY, _("PrintPilot: Analysis Error"),
-               wxDefaultPosition, wxSize(440, 220),
-               wxDEFAULT_DIALOG_STYLE)
+               wxDefaultPosition, wxDefaultSize,
+               wxDEFAULT_DIALOG_STYLE | wxRESIZE_BORDER)
 {
     auto* top = new wxBoxSizer(wxVERTICAL);
 
     auto* err_lbl = new wxStaticText(this, wxID_ANY,
         wxString::FromUTF8(error));
     err_lbl->SetForegroundColour(wxColour(180, 0, 0));
-    err_lbl->Wrap(400);
+    err_lbl->Wrap(FromDIP(440));
     top->Add(err_lbl, 0, wxALL | wxEXPAND, 14);
 
     wxString proceed_label = trigger == "send"
@@ -268,8 +293,7 @@ PrintPilotErrorDialog::PrintPilotErrorDialog(wxWindow* parent,
     top->Add(btn_sizer, 0, wxALIGN_RIGHT | wxALL, 12);
 
     SetSizer(top);
-    Layout();
-    Centre(wxBOTH);
+    fit_to_screen(this, parent, 420, 160);
 }
 
 // Slice result of the plate being sent (1-based plate_index), for the server's post-slice
