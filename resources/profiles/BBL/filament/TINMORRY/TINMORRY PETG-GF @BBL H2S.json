@@ -1,0 +1,52 @@
+{
+    "type": "filament",
+    "name": "TINMORRY PETG-GF @BBL H2S",
+    "inherits": "Generic PETG-CF @BBL H2S",
+    "from": "system",
+    "setting_id": "TMS58CE3",
+    "instantiation": "true",
+    "filament_vendor": [
+        "TINMORRY"
+    ],
+    "fan_max_speed": [
+        "50"
+    ],
+    "fan_min_speed": [
+        "20"
+    ],
+    "filament_extruder_variant": [
+        "Direct Drive Standard",
+        "Direct Drive High Flow"
+    ],
+    "filament_flow_ratio": [
+        "0.93",
+        "nil"
+    ],
+    "filament_retraction_length": [
+        "1",
+        "nil"
+    ],
+    "nozzle_temperature": [
+        "260",
+        "nil"
+    ],
+    "nozzle_temperature_initial_layer": [
+        "260",
+        "nil"
+    ],
+    "nozzle_temperature_range_high": [
+        "280"
+    ],
+    "nozzle_temperature_range_low": [
+        "250"
+    ],
+    "slow_down_layer_time": [
+        "12"
+    ],
+    "textured_plate_temp": [
+        "80"
+    ],
+    "textured_plate_temp_initial_layer": [
+        "80"
+    ]
+}

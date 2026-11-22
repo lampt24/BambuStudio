@@ -58,7 +58,7 @@ async function main() {
     // Seed data
     assert.strictEqual(await post('/api/heartbeat', {
       device_id: 'redmi', printer_id: 'a1-01', status: 'printing', printer_name: 'A1 trái', printer_model: 'A1',
-      telemetry: { progress: 42, nozzle_temp: 220, bed_temp: 60, current_layer: 10, total_layers: 100, remaining_min: 75, job_name: 'vase.3mf' },
+      telemetry: { progress: 42, nozzle_temp: 220, bed_temp: 60, current_layer: 10, total_layers: 100, remaining_min: 75, job_name: 'vase.3mf', ams: {units: [{id: 4, name: 'AMS 4', humidity: null, slots: [{id: 2, label: 'C3', present: true, material: 'PLA', color: 'AABBCCFF', remaining: -1, rfid: true, active: true}]}], external: null, supports_edit_while_printing: false} },
     }), 200);
     assert.strictEqual(await post('/api/heartbeat', {
       device_id: 'redmi', printer_id: 'a1-02', status: 'idle', printer_name: 'A1 phải', printer_model: 'A1',
@@ -105,7 +105,7 @@ async function main() {
       await page.click(`.nav-item[data-tab="${name}"]`);
       await page.waitForFunction((n) => !document.querySelector(`.view[data-view="${n}"]`).hidden, name);
     };
-    for (const name of ['alerts', 'ai', 'log', 'printers']) {
+    for (const name of ['alerts', 'ai', 'care', 'log', 'printers']) {
       await tab(name);
       assert.strictEqual(await page.getAttribute(`.nav-item[data-tab="${name}"]`, 'aria-current'), 'page');
       assert.strictEqual(await page.locator('.view:not([hidden])').count(), 1);
@@ -269,6 +269,58 @@ async function main() {
     assert.ok(await second.evaluate((c) => c.classList.contains('selected')));
     assert.strictEqual((await page.textContent('#nav-printers-count')).trim(), '2');
 
+    console.log('6a. Rename printer from the detail header; Escape cancels without closing');
+    await page.click('#btn-rename');
+    assert.ok(await page.isVisible('#rename-input'));
+    assert.strictEqual(await page.inputValue('#rename-input'), 'A1 phải');
+    await page.press('#rename-input', 'Escape');
+    assert.ok(await page.evaluate(() => document.getElementById('detail').open), 'Escape must not close the detail');
+    assert.ok(await page.isHidden('#rename-form'));
+    await page.click('#btn-rename');
+    await page.fill('#rename-input', 'Máy góc phòng');
+    await page.press('#rename-input', 'Enter');
+    await page.waitForFunction(() => document.getElementById('detail-title').textContent === 'Máy góc phòng');
+    await page.waitForFunction(() => document.querySelector('.nav-printer[data-printer="a1-02"]').textContent.includes('Máy góc phòng'));
+    await page.click('#btn-rename');
+    await page.fill('#rename-input', '');
+    await page.press('#rename-input', 'Enter');
+    await page.waitForFunction(() => document.getElementById('detail-title').textContent === 'A1 phải');
+
+    console.log('6b. Approved camera aspect ratio and live AMS fail-closed editor');
+    await first.click();
+    const camera = await page.locator('.detail-media').boundingBox();
+    assert.ok(Math.abs(camera.width / camera.height - 16 / 9) < 0.01);
+    assert.strictEqual(await page.locator('#btn-live svg:not([hidden])').evaluate((node) => getComputedStyle(node).width), '16px');
+    assert.ok((await page.textContent('#filament-panel')).includes('AMS 4'));
+    assert.ok((await page.textContent('#filament-panel')).includes('RFID · Chỉ đọc'));
+    assert.ok((await page.textContent('#filament-panel')).includes('Chưa có dữ liệu'));
+    assert.ok(await page.locator('#filament-panel > button').isDisabled());
+    assert.strictEqual(await page.locator('#detail [data-cmd="speed"]').count(), 4);
+    console.log('6c. AMS editor layout and firmware-unsupported lock');
+    let amsSupported = true;
+    await page.route('**/api/state', async (route) => { const response = await route.fetch(); const body = await response.json(); const p = body.printers.find((x) => x.telemetry && x.telemetry.ams); p.status = 'idle'; p.ams_edit_supported = amsSupported; Object.assign(p.telemetry.ams.units[0].slots[0], {rfid: false, rfid_known: true, active: false, filament_id: 'GFA00', setting_id: 'GFSA00', filament_name: 'Bambu PLA Basic', flow_k: 0.02, cali_idx: 5}); await route.fulfill({response, json: body}); });
+    await page.route('**/api/filament-profiles*', (route) => route.fulfill({json: {profiles: [{id: 'Bambu PLA Basic @BBL A1', name: 'Bambu PLA Basic @BBL A1', type: 'PLA', filament_id: 'GFA00', setting_id: 'GFSA00', nozzle_temp_min: 190, nozzle_temp_max: 230}]}}));
+    await page.reload(); await page.waitForSelector('.printer'); await page.locator('.printer').first().click();
+    await page.waitForFunction(() => { const b = document.querySelector('#filament-panel > button'); return b && !b.disabled; });
+    const panelText = await page.textContent('#filament-panel');
+    assert.ok(panelText.includes('Bambu PLA Basic') && panelText.includes('K 0.020') && panelText.includes('#5'), 'filament name and dynamic flow state shown');
+    await page.click('#filament-panel > button');
+    await page.waitForSelector('.ams-editor .color-swatch');
+    const swatch = await page.locator('.ams-editor .color-swatch').boundingBox();
+    const hexBox = await page.locator('.ams-editor .color-hex').boundingBox();
+    const selectBox = await page.locator('.ams-editor select').boundingBox();
+    assert.ok(swatch.width >= 40 && swatch.height >= 40, 'colour swatch is large enough to see');
+    assert.ok(Math.abs(hexBox.height - selectBox.height) <= 1 && Math.abs(hexBox.y - selectBox.y) <= 1, 'hex field aligns with the profile select');
+    await page.locator('.color-preset[data-color="#18c241"]').click();
+    assert.strictEqual(await page.inputValue('.ams-editor .color-hex'), '#18C241');
+    assert.ok(parseFloat(await page.locator('#filament-panel .filament-note').first().evaluate((n) => getComputedStyle(n).fontSize)) >= 12);
+    amsSupported = false;
+    await page.reload(); await page.waitForSelector('.printer'); await page.locator('.printer').first().click();
+    await page.waitForFunction(() => (document.querySelector('#filament-panel')?.textContent || '').includes('Bambu PLA Basic'));
+    assert.strictEqual(await page.locator('#filament-panel > button').count(), 0, 'no edit control on unsupported firmware');
+    assert.ok(!(await page.textContent('#filament-panel')).includes('0502-4007'));
+    await page.unroute('**/api/state'); await page.unroute('**/api/filament-profiles*');
+    await page.reload(); await page.waitForSelector('.printer');
     console.log('7. CSP header present and no console errors');
     const res = await fetch(BASE + '/');
     assert.ok((res.headers.get('content-security-policy') || '').includes("script-src 'self'"));
@@ -297,6 +349,33 @@ async function main() {
     await page.waitForFunction(() => document.querySelector('[data-result="cleanup"]').dataset.state === 'ok');
     await page.click('#settings .dialog-foot [data-close]');
 
+    console.log('8a. AI history, per-print review and reanalysis use server APIs');
+    const analysis = {id: 'ui-analysis', filename: 'model.3mf', status: 'done', objective: 'quality', model_key: 'geometry-key', summary: 'Better surface', changes: [{key: 'layer_height', old: 0.2, value: 0.12, reason: 'Smoother layers'}], feedback_context: [{printer_id: 'a1-01', review: {rating: 3, issues: ['Tơ nhựa'], comment: 'Review evidence'}}]};
+    await page.route('**/api/state', async (route) => { const response = await route.fetch(); const body = await response.json(); body.analyses = [analysis]; await route.fulfill({response, json: body}); });
+    await page.route('**/api/analyses/ui-analysis/prints', (route) => route.fulfill({json: {prints: [{id: 'ui-print', analysis_id: 'ui-analysis', printer_id: 'a1-01', job_name: 'Verified print', status: 'completed', started_at: '2026-11-20T10:00:00Z', ended_at: '2026-11-20T11:00:00Z', review: null}]}}));
+    let reviewed = false;
+    await page.route('**/api/prints/ui-print/review', async (route) => { const body = route.request().postDataJSON(); assert.strictEqual(body.rating, 4); assert.strictEqual(body.comment, 'Useful feedback'); reviewed = true; await route.fulfill({json: {review: body}}); });
+    await page.route('**/api/analyses/ui-analysis/file', (route) => route.fulfill({body: '3mf-input'}));
+    let analyzed = false;
+    await page.route('**/api/analyze', async (route) => { const body = route.request().postDataJSON(); assert.strictEqual(body.filename, 'model.3mf'); assert.strictEqual(body.objective, 'strength'); assert.strictEqual(body.project_base64, Buffer.from('3mf-input').toString('base64')); analyzed = true; await route.fulfill({json: {...analysis, id: 'ui-analysis'}}); });
+    await page.reload(); await page.waitForSelector('.printer'); await tab('ai');
+    await page.waitForSelector('.model-print-history .print-history-table');
+    await page.waitForSelector('.model-print-history > .print-review:not([hidden])');
+    assert.strictEqual(await page.textContent('.print-review h3'), 'Bản in thực tế thế nào?');
+    await page.getByRole('button', {name: 'Đánh giá', exact: true}).click();
+    await page.locator('.print-review .rating-options label').filter({hasText: 'Tốt'}).filter({hasText: '4'}).click();
+    assert.ok(await page.locator('.print-review input[name=rating][value="4"]').isChecked());
+    await page.locator('.print-review textarea').fill('Useful feedback');
+    await page.getByRole('button', {name: 'Gửi đánh giá', exact: true}).click();
+    await page.waitForFunction(() => document.querySelector('.model-print-history .print-review textarea')?.value === '');
+    assert.ok(reviewed);
+    await page.locator('.goal-options button').filter({hasText: 'Độ bền'}).click();
+    await page.getByRole('button', {name: 'Phân tích và tối ưu', exact: true}).click();
+    await page.waitForFunction(() => !document.querySelector('.analyze-again').disabled);
+    assert.ok(analyzed);
+    assert.ok((await page.textContent('.feedback-context')).includes('Review evidence'));
+    await page.unroute('**/api/state'); await page.reload(); await page.waitForSelector('.printer', {state: 'attached'});
+    await tab('printers');
     console.log('8b. Theme switch overrides the OS and persists');
     await page.emulateMedia({ colorScheme: 'dark' });
     const bg = () => page.evaluate(() => getComputedStyle(document.body).backgroundColor);
@@ -316,13 +395,45 @@ async function main() {
     assert.strictEqual(await page.getAttribute('html', 'data-theme'), null);
     assert.strictEqual(await bg(), darkBg); // OS is dark
 
+    console.log('8c. Spools, calibration and maintenance');
+    await tab('filaments');
+    await page.waitForFunction(() => (document.getElementById('spool-list')?.textContent || '').includes('Chưa có cuộn'));
+    await page.click('#spool-add');
+    await page.fill('#spool-form [name=name]', 'Cuộn <b>thử</b>');
+    await page.fill('#spool-form [name=material]', 'PETG');
+    await page.fill('#spool-form [name=dried_at]', '2020-01-01');
+    await page.click('#spool-form button[type=submit]');
+    await page.waitForFunction(() => document.querySelectorAll('#spool-list .spool-card').length === 1);
+    const spoolText = await page.textContent('#spool-list');
+    assert.ok(spoolText.includes('Cuộn <b>thử</b>') && spoolText.includes('Nên sấy'), spoolText);
+    assert.ok(spoolText.includes('Còn 1000 / 1000 g'));
+    await page.click('#spool-list .spool-card button:has-text("Vừa sấy")');
+    await page.waitForFunction(() => !(document.getElementById('spool-list').textContent || '').includes('Nên sấy'));
+    await page.waitForSelector('#fil-types details.fil-type[open] .fil-preset button:has-text("Hiệu chỉnh")');
+    await page.locator('#fil-types details.fil-type[open] .fil-preset button:has-text("Hiệu chỉnh")').first().click();
+    await page.waitForFunction(() => document.querySelectorAll('#cal-steps li').length === 5);
+    await page.click('#cal-cancel');
+    await tab('care');
+    await page.waitForSelector('#care-printers .care-task');
+    assert.strictEqual(await page.locator('#care-printers .care-card').count(), 2);
+    assert.ok((await page.textContent('#care-env')).includes('/api/environment'));
+    await page.locator('#care-printers .care-task button:has-text("Đã làm")').first().click();
+    await page.waitForFunction(() => (document.getElementById('care-status')?.textContent || '').startsWith('Đã ghi'));
+    assert.strictEqual(await post('/api/environment', { sensor_id: 'phong-in', temperature: 16.5, humidity: 72 }), 200);
+    await tab('log'); await tab('care');
+    await page.waitForFunction(() => (document.getElementById('care-env')?.textContent || '').includes('16.5°C'));
+    assert.ok((await page.textContent('#care-env')).includes('Phòng ẩm'));
+    await tab('printers');
+
     console.log('9. Phone: bottom tab bar, no horizontal overflow');
     await page.setViewportSize({ width: 360, height: 780 });
     assert.ok(!(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth)));
     const navBox = await page.locator('.nav').boundingBox();
     assert.ok(Math.abs(navBox.y + navBox.height - 780) < 2, `tab bar should sit at the bottom, got y=${navBox.y}`);
-    await tab('log');
-    assert.ok(!(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth)));
+    for (const name of ['log', 'care', 'filaments']) {
+      await tab(name);
+      assert.ok(!(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth)), `${name} overflows`);
+    }
     await tab('printers');
     assert.ok(!(await page.evaluate(() => document.getElementById('detail').open)), 'docked panel closes on narrow screens');
     await first.click();

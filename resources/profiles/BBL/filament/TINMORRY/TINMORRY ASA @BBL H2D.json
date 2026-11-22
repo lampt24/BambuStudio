@@ -1,0 +1,31 @@
+{
+    "type": "filament",
+    "name": "TINMORRY ASA @BBL H2D",
+    "inherits": "Generic ASA @BBL H2D",
+    "from": "system",
+    "setting_id": "TMS85F7F",
+    "instantiation": "true",
+    "filament_vendor": [
+        "TINMORRY"
+    ],
+    "fan_cooling_layer_time": [
+        "30"
+    ],
+    "fan_max_speed": [
+        "50"
+    ],
+    "fan_min_speed": [
+        "20"
+    ],
+    "filament_extruder_variant": [
+        "Direct Drive Standard",
+        "Direct Drive High Flow"
+    ],
+    "nozzle_temperature": [
+        "265",
+        "nil"
+    ],
+    "slow_down_layer_time": [
+        "12"
+    ]
+}

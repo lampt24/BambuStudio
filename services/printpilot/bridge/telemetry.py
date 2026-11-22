@@ -1,4 +1,4 @@
-"""Read-only Bambu printer telemetry over the printer's local MQTT broker.
+"""Bambu printer telemetry and manager-authorized controls over the printer's local MQTT broker.
 
 Works while the printer stays in cloud mode (LAN Only Mode is not needed):
 the local broker on port 8883 accepts user ``bblp`` + the access code shown on
@@ -12,6 +12,14 @@ Pure standard library (minimal MQTT 3.1.1) so it runs on Termux without pip.
 """
 
 from __future__ import annotations
+
+import math
+import re
+import uuid
+try:
+    from .ams import normalize_ams, merge_state, material_payload, find_slot, readback_matches
+except ImportError:
+    from ams import normalize_ams, merge_state, material_payload, find_slot, readback_matches
 
 import hashlib
 import json
@@ -132,7 +140,7 @@ def _num(value: Any) -> Optional[float]:
         f = float(value)
     except (TypeError, ValueError):
         return None
-    return f if f == f else None  # drop NaN
+    return f if math.isfinite(f) else None  # drop NaN
 
 
 def normalize(report: Dict[str, Any]) -> Dict[str, Any]:
@@ -159,6 +167,23 @@ def normalize(report: Dict[str, Any]) -> Dict[str, Any]:
     name = report.get("subtask_name")
     if isinstance(name, str) and name:
         out["job_name"] = name[:120]
+    for key in ("task_id", "subtask_id", "project_id"):
+        value = report.get(key)
+        if isinstance(value, (str, int)) and not isinstance(value, bool):
+            out[key] = str(value)[:160]
+    # Studio sends one plate per job as Metadata/plate_N.gcode; anything else stays unknown.
+    gcode_file = report.get("gcode_file")
+    if isinstance(gcode_file, str):
+        plate = re.search(r"(?:^|/)plate_(\d{1,2})\.gcode$", gcode_file.strip(), re.I)
+        if plate and int(plate.group(1)) >= 1:
+            out["plate_index"] = int(plate.group(1))
+    nozzle = _num(report.get("nozzle_diameter"))
+    if nozzle is not None and 0.1 <= nozzle <= 1.2:
+        out["nozzle_diameter"] = round(nozzle, 2)
+    nozzle_type = report.get("nozzle_type")
+    if isinstance(nozzle_type, str) and re.fullmatch(r"[a-z_]{1,32}", nozzle_type):
+        out["nozzle_type"] = nozzle_type  # e.g. stainless_steel, hardened_steel
+    out["ams"] = normalize_ams(report)
     lights = report.get("lights_report")
     if isinstance(lights, list):
         for item in lights:
@@ -170,11 +195,13 @@ def normalize(report: Dict[str, Any]) -> Dict[str, Any]:
     return out
 
 
-SUPPORTED_COMMANDS = {"pause", "resume", "stop", "light", "speed"}
+SUPPORTED_COMMANDS = {"pause", "resume", "stop", "light", "speed", "ams_filament_setting"}
 
 
 def command_payload(command: str, params: Dict[str, Any], seq: str) -> Dict[str, Any]:
     """MQTT request body for a whitelisted control command."""
+    if command == "ams_filament_setting":
+        return material_payload(params, seq)
     if command in ("pause", "resume", "stop"):
         return {"print": {"sequence_id": seq, "command": command, "param": ""}}
     if command == "light":
@@ -195,12 +222,17 @@ def command_payload(command: str, params: Dict[str, Any], seq: str) -> Dict[str,
 def interpret_reply(reply: Dict[str, Any]) -> tuple[bool, str]:
     result = str(reply.get("result") or "").lower()
     err = reply.get("err_code")
+    err = None if err in (None, 0, "0", "") else err
     if result == "success" and not err:
         return True, "success"
     if result in ("fail", "failed") or err:
         reason = reply.get("reason")
         detail = reason if reason and reason != "success" else ""
-        code = f"mã {err}" if err else ""
+        try:
+            hexcode = f"{int(err):08X}"
+            code = f"mã {hexcode[:4]}-{hexcode[4:]} ({err})"
+        except (TypeError, ValueError):
+            code = f"mã {err}" if err else ""
         return False, " ".join(x for x in (detail, code) if x) or "máy in từ chối"
     return True, str(reply.get("reason") or "đã nhận")
 
@@ -258,6 +290,8 @@ class TelemetryClient:
         self.on_update = on_update
         self._raw: Dict[str, Any] = {}
         self._updated_at = 0.0
+        self._ams_updated_at = 0.0
+        self._slot_updated = {}
         self._lock = threading.Lock()
         self._stop = threading.Event()
         self._thread: Optional[threading.Thread] = None
@@ -265,6 +299,7 @@ class TelemetryClient:
         self._sock = None
         self._send_lock = threading.Lock()
         self._waiters: Dict[str, Dict[str, Any]] = {}  # sequence_id -> {"event", "reply"}
+        self._material_readback = None
         self._full_report = threading.Event()  # set when a full status (pushall reply) arrives
 
     # -- public -----------------------------------------------------------
@@ -282,7 +317,13 @@ class TelemetryClient:
         with self._lock:
             if not self._raw or time.monotonic() - self._updated_at > max_age:
                 return {}
-            return normalize(self._raw)
+            return self._with_identity(normalize(self._raw))
+
+    def _with_identity(self, telemetry: Dict[str, Any]) -> Dict[str, Any]:
+        # Lets Studio name the printer it is sending to (serial) when several share one server.
+        if self.serial and re.fullmatch(r"[A-Za-z0-9]{6,32}", self.serial):
+            telemetry["serial"] = self.serial
+        return telemetry
 
     def refresh(self, timeout: float = 3.0) -> bool:
         """Ask for a full status push and wait for it; True once it has been merged.
@@ -323,11 +364,21 @@ class TelemetryClient:
         """Publish a whitelisted command and wait for the printer's reply."""
         if command not in SUPPORTED_COMMANDS:
             return False, "lệnh không được hỗ trợ"
-        seq = str(int(time.time() * 1000) % 10**9)
+        seq = str(uuid.uuid4().int % 10**15)
         try:
             payload = command_payload(command, params, seq)
         except ValueError as exc:
             return False, str(exc)
+        if command == "ams_filament_setting":
+            if time.monotonic() - self._slot_updated.get((params['ams_id'], params['slot_id']), 0) > 30:
+                # Normal idle deltas omit tags; pushall is a read request, not an edit.
+                self.refresh(timeout=3.0)
+            current = self.snapshot(max_age=30)
+            slot = find_slot(current, params)
+            if time.monotonic() - self._slot_updated.get((params['ams_id'], params['slot_id']), 0) > 30 or time.monotonic() - self._ams_updated_at > 30 or not slot or not slot['present'] or slot['rfid']:
+                return False, "khe trống, cuộn RFID hoặc chưa đọc được trạng thái khe"
+            if current.get('gcode_state', '').upper() not in ('IDLE', 'FINISH', 'FAILED'):
+                return False, "chỉ chỉnh filament khi máy đang rảnh"
         waiter = {"event": threading.Event(), "reply": None}
         self._waiters[seq] = waiter
         try:
@@ -338,7 +389,28 @@ class TelemetryClient:
                 sock.sendall(build_publish(f"device/{self.serial}/request", json.dumps(payload).encode()))
             if not waiter["event"].wait(timeout):
                 return False, "máy in không phản hồi lệnh"
-            return interpret_reply(waiter["reply"] or {})
+            reply = waiter["reply"] or {}
+            if command != "ams_filament_setting":
+                return interpret_reply(reply)
+            logger.info("ams_filament_setting reply: %s", json.dumps(reply, ensure_ascii=False)[:600])
+            # Native Studio treats the echoed command as the ACK (firmware often omits
+            # "result"); an explicit failure or error code still rejects. Success is only
+            # declared after the refreshed telemetry readback below matches.
+            ok, reason = interpret_reply(reply)
+            if reply.get('command') != command or not ok:
+                return False, f"máy in từ chối thay đổi filament: {reason}" if not ok else "phản hồi không phải của lệnh filament"
+            # Never use ACK identity fields as telemetry. Require a fresh, complete slot report.
+            with self._lock:
+                self._material_readback = None
+            deadline = time.monotonic() + timeout
+            while time.monotonic() < deadline:
+                self.refresh(min(0.5, max(0, deadline - time.monotonic())))
+                with self._lock:
+                    observed = self._material_readback
+                if observed and readback_matches(observed, params):
+                    return True, "đã cập nhật filament, dữ liệu đọc lại khớp"
+                time.sleep(min(0.05, max(0, deadline - time.monotonic())))
+            return False, "máy đã nhận lệnh nhưng dữ liệu filament đọc lại chưa khớp thay đổi"
         except OSError as exc:
             return False, f"lỗi gửi lệnh: {exc}"
         finally:
@@ -361,9 +433,29 @@ class TelemetryClient:
         if not isinstance(report, dict):
             return
         with self._lock:
-            self._raw.update(report)
-            self._updated_at = time.monotonic()
-            current = normalize(self._raw)
+            # ACKs are not status reports and must not refresh stale cached telemetry.
+            if report.get('command') == 'ams_filament_setting':
+                return
+            self._raw = merge_state(self._raw, report)
+            if 'ams' in report or 'vt_tray' in report:
+                self._material_readback = report
+                self._ams_updated_at = time.monotonic()
+                wire_ams = report.get('ams', {})
+                if isinstance(wire_ams, dict) and isinstance(wire_ams.get('ams'), list):
+                    for unit in wire_ams['ams']:
+                        if not isinstance(unit, dict) or not isinstance(unit.get('tray'), list):
+                            continue
+                        for tray in unit['tray']:
+                            if isinstance(tray, dict) and 'tag_uid' in tray:
+                                try:
+                                    self._slot_updated[(int(unit['id']), int(tray['id']))] = self._ams_updated_at
+                                except (KeyError, ValueError, TypeError):
+                                    pass
+                if isinstance(report.get('vt_tray'), dict) and 'tag_uid' in report['vt_tray']:
+                    self._slot_updated[(255, 0)] = self._ams_updated_at
+            if any(key not in ('command', 'sequence_id', 'result', 'reason', 'err_code') for key in report):
+                self._updated_at = time.monotonic()
+            current = self._with_identity(normalize(self._raw))
         if "lights_report" in report and "gcode_state" in report:
             self._full_report.set()
         if self.on_update:
@@ -405,6 +497,10 @@ class TelemetryClient:
             sock = None
             try:
                 sock = self._connect()
+                with self._lock:
+                    self._raw = {}
+                    self._updated_at = 0.0
+                    self._slot_updated = {}
                 sock.settimeout(KEEPALIVE / 2)
                 with self._send_lock:
                     self._sock = sock

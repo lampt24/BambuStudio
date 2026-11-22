@@ -12,8 +12,8 @@ Pure Python 3 standard library bridge designed to run on a dedicated Android dev
 > This bridge implements the Bambu Lab local camera TLS protocol (TCP port 6000 with `bblp` authentication and binary framing). Exact firmware compatibility across various Bambu Lab firmware versions remains **unknown until hardware verification on the target printer**.
 
 > [!CAUTION]
-> **Read-Only / Safety Boundary:**
-> This bridge **strictly captures camera frames** and posts them to PrintPilot. It **never sends control commands** to the printer (no motion, extrusion, heating, or pause/cancel commands).
+> **Manager-authorized controls:**
+> The bridge reads camera/MQTT telemetry and executes server-queued pause, resume, stop, chamber light, speed, and material-setting commands. Material edits require fresh idle telemetry, an occupied non-RFID slot, validated profile fields, an explicit success ACK, and matching fresh telemetry readback. Unknown RFID is read-only. No arbitrary G-code is accepted.
 
 ---
 
@@ -208,3 +208,5 @@ Run the full suite of unit tests directly with Python's built-in `unittest`:
 ```bash
 python3 -m unittest discover services/printpilot/bridge/tests/
 ```
+
+AMS telemetry preserves actual unit/slot IDs and nested partial updates. `ams.units`, `ams.external`, active IDs, humidity, RGBA colors, remaining percent and profile IDs are reported. `rfid_known=false` is represented conservatively as `rfid=true`. Editing while printing is disabled until a documented device capability can be verified. Task/project/subtask IDs remain available for backend print history.

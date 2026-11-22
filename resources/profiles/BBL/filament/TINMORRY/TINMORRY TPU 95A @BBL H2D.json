@@ -1,0 +1,41 @@
+{
+    "type": "filament",
+    "name": "TINMORRY TPU 95A @BBL H2D",
+    "inherits": "Generic TPU @BBL H2D",
+    "from": "system",
+    "setting_id": "TMSD468A",
+    "instantiation": "true",
+    "filament_vendor": [
+        "TINMORRY"
+    ],
+    "filament_extruder_variant": [
+        "Direct Drive Standard",
+        "Direct Drive High Flow"
+    ],
+    "filament_flow_ratio": [
+        "0.98",
+        "nil"
+    ],
+    "filament_max_volumetric_speed": [
+        "3.6",
+        "nil"
+    ],
+    "filament_retraction_length": [
+        "1.4",
+        "nil"
+    ],
+    "nozzle_temperature": [
+        "220",
+        "nil"
+    ],
+    "nozzle_temperature_initial_layer": [
+        "220",
+        "nil"
+    ],
+    "textured_plate_temp": [
+        "45"
+    ],
+    "textured_plate_temp_initial_layer": [
+        "45"
+    ]
+}

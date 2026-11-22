@@ -1,0 +1,29 @@
+{
+    "type": "filament",
+    "name": "TINMORRY PC-GF @BBL A1",
+    "inherits": "Generic PC @BBL A1",
+    "from": "system",
+    "setting_id": "TMSA679B",
+    "instantiation": "true",
+    "filament_vendor": [
+        "TINMORRY"
+    ],
+    "fan_max_speed": [
+        "40"
+    ],
+    "filament_extruder_variant": [
+        "Direct Drive Standard"
+    ],
+    "filament_max_volumetric_speed": [
+        "10"
+    ],
+    "nozzle_temperature_initial_layer": [
+        "280"
+    ],
+    "reduce_fan_stop_start_freq": [
+        "1"
+    ],
+    "slow_down_layer_time": [
+        "12"
+    ]
+}

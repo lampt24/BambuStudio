@@ -5,6 +5,7 @@
 #include "PrintPilotValidation.hpp"
 
 #include <algorithm>
+#include <cmath>
 #include <set>
 #include <stdexcept>
 
@@ -30,6 +31,11 @@
 #include "slic3r/GUI/Plater.hpp"
 #include "slic3r/GUI/MainFrame.hpp"
 #include "slic3r/GUI/Tab.hpp"
+#include "slic3r/GUI/PartPlate.hpp"
+#include "libslic3r/GCode/GCodeProcessor.hpp"
+#include "libslic3r/ExtrusionEntity.hpp"
+#include "slic3r/GUI/DeviceManager.hpp"
+#include "slic3r/GUI/DeviceCore/DevManager.h"
 #include "libslic3r/Preset.hpp"
 #include "libslic3r/PrintConfig.hpp"
 #include "libslic3r/PresetBundle.hpp"
@@ -111,7 +117,8 @@ void PrintPilotProgressDialog::cancel_external()
 // ===========================================================================
 PrintPilotResultDialog::PrintPilotResultDialog(wxWindow* parent,
                                                const AnalysisResult& result,
-                                               const std::vector<SettingChange>& allowed)
+                                               const std::vector<SettingChange>& allowed,
+                                               const std::vector<SettingChange>& manual)
     : wxDialog(parent, wxID_ANY, _("PrintPilot: AI Suggestions"),
                wxDefaultPosition, wxSize(560, 460),
                wxDEFAULT_DIALOG_STYLE | wxRESIZE_BORDER)
@@ -135,14 +142,14 @@ PrintPilotResultDialog::PrintPilotResultDialog(wxWindow* parent,
         top->Add(wlbl, 0, wxLEFT | wxRIGHT | wxBOTTOM | wxEXPAND, 10);
     }
 
-    if (allowed.empty()) {
+    if (allowed.empty() && manual.empty()) {
         auto* none = new wxStaticText(this, wxID_ANY,
-            _("No applicable numeric settings changes were proposed."));
+            _("No applicable settings changes were proposed."));
         none->SetForegroundColour(wxSystemSettings::GetColour(wxSYS_COLOUR_GRAYTEXT));
         top->Add(none, 0, wxALL, 12);
     } else {
         auto* hdr = new wxStaticText(this, wxID_ANY,
-            _("Proposed changes (numeric allowlist only):"));
+            _("Proposed changes (allowlisted settings only):"));
         hdr->SetFont(hdr->GetFont().MakeBold());
         top->Add(hdr, 0, wxLEFT | wxRIGHT | wxTOP, 12);
 
@@ -151,24 +158,30 @@ PrintPilotResultDialog::PrintPilotResultDialog(wxWindow* parent,
         scroll->SetScrollRate(0, 10);
         auto* sv = new wxBoxSizer(wxVERTICAL);
 
-        for (auto& ch : allowed) {
-            wxString row = wxString::Format(
-                "  %s:  %s  →  %s",
-                wxString::FromUTF8(ch.key),
-                wxString::FromUTF8(ch.old_value),
-                wxString::FromUTF8(ch.new_value));
-            auto* row_lbl = new wxStaticText(scroll, wxID_ANY, row);
-            sv->Add(row_lbl, 0, wxLEFT | wxRIGHT | wxTOP, 6);
+        auto add_rows = [&](const std::vector<SettingChange>& rows, bool by_hand) {
+            for (auto& ch : rows) {
+                wxString row = wxString::Format(
+                    "  %s%s:  %s  →  %s%s",
+                    wxString::FromUTF8(ch.key),
+                    ch.scope == "filament" ? wxString::Format(" (filament %d)", ch.filament_index) : wxString(),
+                    wxString::FromUTF8(ch.old_value),
+                    wxString::FromUTF8(ch.new_value),
+                    by_hand ? wxString("   ") + _("(set by hand)") : wxString());
+                auto* row_lbl = new wxStaticText(scroll, wxID_ANY, row);
+                sv->Add(row_lbl, 0, wxLEFT | wxRIGHT | wxTOP, 6);
 
-            if (!ch.reason.empty()) {
-                auto* reason_lbl = new wxStaticText(scroll, wxID_ANY,
-                    wxString("    ") + wxString::FromUTF8(ch.reason));
-                reason_lbl->SetForegroundColour(
-                    wxSystemSettings::GetColour(wxSYS_COLOUR_GRAYTEXT));
-                reason_lbl->Wrap(480);
-                sv->Add(reason_lbl, 0, wxLEFT | wxBOTTOM, 20);
+                for (const std::string* text : {&ch.reason, &ch.evidence}) {
+                    if (text->empty()) continue;
+                    auto* lbl = new wxStaticText(scroll, wxID_ANY,
+                        wxString::FromUTF8(text == &ch.evidence ? "    \xE2\x93\x98 " : "    ") + wxString::FromUTF8(*text));
+                    lbl->SetForegroundColour(wxSystemSettings::GetColour(wxSYS_COLOUR_GRAYTEXT));
+                    lbl->Wrap(480);
+                    sv->Add(lbl, 0, wxLEFT | wxBOTTOM, 20);
+                }
             }
-        }
+        };
+        add_rows(allowed, false);
+        add_rows(manual, true);
         scroll->SetSizer(sv);
         scroll->FitInside();
         top->Add(scroll, 1, wxLEFT | wxRIGHT | wxEXPAND, 10);
@@ -259,13 +272,56 @@ PrintPilotErrorDialog::PrintPilotErrorDialog(wxWindow* parent,
     Centre(wxBOTH);
 }
 
+// Slice result of the plate being sent (1-based plate_index), for the server's post-slice
+// checks and spool accounting: time, per-layer times, filament volume/weight per slot,
+// flush and filament changes, time per extrusion role. Empty when not sliced.
+static std::string collect_slice_stats(Plater* plater, int plate_index)
+{
+    if (!plater || plate_index < 1) return {};
+    PartPlate* plate = plater->get_partplate_list().get_plate(plate_index - 1);
+    if (!plate || !plate->is_slice_result_valid()) return {};
+    GCodeProcessorResult* result = plate->get_slice_result();
+    if (!result) return {};
+    const PrintEstimatedStatistics& ps = result->print_statistics;
+    const auto& mode = ps.modes[static_cast<size_t>(PrintEstimatedStatistics::ETimeMode::Normal)];
+    nlohmann::json j;
+    j["time_s"] = mode.time;
+    nlohmann::json layers = nlohmann::json::array();
+    for (size_t i = 0; i < mode.layers_times.size() && i < 5000; ++i)
+        layers.push_back(std::round(mode.layers_times[i] * 10.f) / 10.f);
+    j["layer_times_s"] = layers;
+    nlohmann::json filaments = nlohmann::json::array();
+    for (const auto& entry : ps.total_volumes_per_extruder) {
+        const size_t extruder = entry.first;
+        const double volume = entry.second;
+        const double density = extruder < result->filament_densities.size() ? result->filament_densities[extruder] : 0.0;
+        auto lookup = [&](const std::map<size_t, double>& m) { auto it = m.find(extruder); return it == m.end() ? 0.0 : it->second; };
+        filaments.push_back({{"index", int(extruder) + 1},
+                             {"volume_mm3", volume},
+                             {"model_mm3", lookup(ps.model_volumes_per_extruder)},
+                             {"support_mm3", lookup(ps.support_volumes_per_extruder)},
+                             {"tower_mm3", lookup(ps.wipe_tower_volumes_per_extruder)},
+                             {"flush_mm3", lookup(ps.flush_per_filament)},
+                             {"weight_g", density > 0 ? volume * density / 1000.0 : 0.0}});
+    }
+    j["filaments"] = filaments;
+    j["filament_changes"] = ps.total_filament_changes;
+    j["flush_changes"] = ps.total_flush_filament_changes;
+    nlohmann::json roles = nlohmann::json::object();
+    for (const auto& role_time : mode.roles_times)
+        roles[ExtrusionEntity::role_to_string(role_time.first)] = role_time.second;
+    j["role_times_s"] = roles;
+    return j.dump();
+}
+
 // ===========================================================================
 // run_printpilot_flow
 // ===========================================================================
 DialogResult run_printpilot_flow(Plater* plater,
                                  const std::string& temp_3mf_path,
                                  const std::string& trigger,
-                                 const std::string& objective)
+                                 const std::string& objective,
+                                 int plate_index)
 {
     // 1. Load config
     PrintPilotConfig cfg;
@@ -312,7 +368,13 @@ DialogResult run_printpilot_flow(Plater* plater,
     }
 
     // Extract filename from path
+    // Prefer the project name over the random temp export name for the dashboard.
     std::string filename = boost::filesystem::path(temp_3mf_path).filename().string();
+    if (plater) {
+        const std::string project = plater->get_project_name().ToUTF8().data();
+        if (!project.empty())
+            filename = project + ".3mf";
+    }
 
     // 4. Show progress dialog while request is in flight
     wxWindow* parent_win = wxGetApp().mainframe;
@@ -327,7 +389,13 @@ DialogResult run_printpilot_flow(Plater* plater,
     shared->dlg = &progress_dlg;
 
     // Start async request
-    cancel_token = start_analysis(cfg, b64, settings_json, objective, trigger, filename,
+    // The printer selected in the device tab, so the server can check its AMS and nozzle.
+    std::string printer_serial;
+    if (auto* dm = wxGetApp().getDeviceManager())
+        if (MachineObject* machine = dm->get_selected_machine())
+            printer_serial = machine->get_dev_id();
+    const std::string slice_stats = collect_slice_stats(plater, plate_index);
+    cancel_token = start_analysis(cfg, b64, settings_json, objective, trigger, filename, plate_index, printer_serial, slice_stats,
         [shared](AnalysisResult res) {
             shared->result = std::move(res);
             shared->ready = true;
@@ -358,54 +426,109 @@ DialogResult run_printpilot_flow(Plater* plater,
         return DialogResult::Error;
     }
 
-    // 6. Filter to allowlist
+    // 6. Filter to allowlist. Numeric (v1) and print-preset settings_v2 keys apply to the
+    // Process tab; filament keys apply to the Filament tab only while it edits the plate's
+    // filament, otherwise they are shown as "set by hand". Anything else aborts, as before.
     std::vector<SettingChange> allowed_changes;
+    std::vector<SettingChange> manual_changes;
     std::set<std::string> seen;
     Tab* print_tab = wxGetApp().get_tab(Preset::TYPE_PRINT);
+    Tab* filament_tab = wxGetApp().get_tab(Preset::TYPE_FILAMENT);
     if (!print_tab || !print_tab->get_config()) return DialogResult::Cancelled;
+    auto filament_tab_edits = [&](int index) {
+        auto* bundle = wxGetApp().preset_bundle;
+        return filament_tab && filament_tab->get_config() && filament_tab->get_presets() && bundle &&
+               index >= 1 && size_t(index) <= bundle->filament_presets.size() &&
+               bundle->filament_presets[size_t(index) - 1] == filament_tab->get_presets()->get_edited_preset().name;
+    };
+    auto reject = [&]() {
+        PrintPilotErrorDialog err_dlg(parent_win, "AI suggestions did not match current settings or allowed bounds.", trigger);
+        return err_dlg.ShowModal() == wxID_OK ? DialogResult::Error : DialogResult::Cancelled;
+    };
     for (const auto& ch : result.changes) {
-        const ConfigOption* current = print_tab->get_config()->option(ch.key);
-        if (!current || !seen.insert(ch.key).second ||
-            !valid_change(ch.key, ch.old_value, ch.new_value, current->serialize(), nozzle_diameter)) {
-            PrintPilotErrorDialog err_dlg(parent_win, "AI suggestions did not match current settings or allowed bounds.", trigger);
-            return err_dlg.ShowModal() == wxID_OK ? DialogResult::Error : DialogResult::Cancelled;
+        if (!seen.insert(ch.key).second) return reject();
+        const ExtendedRule* rule = extended_rule(ch.key);
+        if (!rule) {
+            const ConfigOption* current = print_tab->get_config()->option(ch.key);
+            if (ch.scope != "print" || !current ||
+                !valid_change(ch.key, ch.old_value, ch.new_value, current->serialize(), nozzle_diameter))
+                return reject();
+        } else if (rule->scope == 0) {
+            const ConfigOption* current = print_tab->get_config()->option(ch.key);
+            if (ch.scope != "print" || !current ||
+                !valid_extended_change(ch.key, ch.old_value, ch.new_value, current->serialize()))
+                return reject();
+        } else {
+            if (ch.scope != "filament" || ch.filament_index < 1 || !extended_value(*rule, ch.new_value)) return reject();
+            if (!filament_tab_edits(ch.filament_index)) {
+                manual_changes.push_back(ch);
+                continue;
+            }
+            const ConfigOption* current = filament_tab->get_config()->option(ch.key);
+            std::string first;
+            size_t count = 0;
+            if (!current || !uniform_first(current->serialize(), first, count) ||
+                !valid_extended_change(ch.key, ch.old_value, ch.new_value, first))
+                return reject();
         }
         if (ch.old_value == ch.new_value) continue;
         allowed_changes.push_back(ch);
     }
 
     // 7. Show results dialog
-    PrintPilotResultDialog result_dlg(parent_win, result, allowed_changes);
+    PrintPilotResultDialog result_dlg(parent_win, result, allowed_changes, manual_changes);
     int review_ret = result_dlg.ShowModal();
     if (review_ret == wxID_CANCEL) return DialogResult::Cancelled;
 
     if (!result_dlg.apply_requested())
         return DialogResult::Skipped;
 
-    // 8. Apply changes via Tab::load_config
-    // Build a DynamicPrintConfig with only the allowed changed keys.
-    // We use set_deserialize_strict to parse numeric strings safely.
+    // 8. Apply changes via Tab::load_config, re-checking each value against the live config.
     bool any_applied = false;
     if (!allowed_changes.empty()) {
-        if (print_tab) {
-            DynamicPrintConfig patch;
-            // Apply to a copy of the current config to get the right option types
-            patch.apply(*print_tab->get_config());
-
-            try {
-                for (const auto& ch : allowed_changes) {
+        DynamicPrintConfig print_patch;
+        DynamicPrintConfig filament_patch;
+        bool print_dirty = false, filament_dirty = false;
+        print_patch.apply(*print_tab->get_config());
+        if (filament_tab && filament_tab->get_config())
+            filament_patch.apply(*filament_tab->get_config());
+        try {
+            for (const auto& ch : allowed_changes) {
+                const ExtendedRule* rule = extended_rule(ch.key);
+                if (!rule) {
                     const ConfigOption* current = print_tab->get_config()->option(ch.key);
                     if (!current || !valid_change(ch.key, ch.old_value, ch.new_value, current->serialize(), nozzle_diameter))
                         throw std::runtime_error("Settings changed during AI review");
-                    patch.set_deserialize_strict(ch.key,
+                    print_patch.set_deserialize_strict(ch.key,
                         ch.key == "sparse_infill_density" ? ch.new_value + "%" : ch.new_value);
+                    print_dirty = true;
+                } else if (rule->scope == 0) {
+                    const ConfigOption* current = print_tab->get_config()->option(ch.key);
+                    if (!current || !valid_extended_change(ch.key, ch.old_value, ch.new_value, current->serialize()))
+                        throw std::runtime_error("Settings changed during AI review");
+                    print_patch.set_deserialize_strict(ch.key, ch.new_value);
+                    print_dirty = true;
+                } else {
+                    const ConfigOption* current = filament_tab_edits(ch.filament_index)
+                                                      ? filament_tab->get_config()->option(ch.key) : nullptr;
+                    std::string first;
+                    size_t count = 0;
+                    if (!current || !uniform_first(current->serialize(), first, count) ||
+                        !valid_extended_change(ch.key, ch.old_value, ch.new_value, first))
+                        throw std::runtime_error("Filament settings changed during AI review");
+                    // keep one value per extruder variant
+                    std::string value = ch.new_value;
+                    for (size_t i = 1; i < count; ++i) value += "," + ch.new_value;
+                    filament_patch.set_deserialize_strict(ch.key, value);
+                    filament_dirty = true;
                 }
-                print_tab->load_config(patch);
-                any_applied = true;
-            } catch (const std::exception& ex) {
-                PrintPilotErrorDialog err_dlg(parent_win, ex.what(), trigger);
-                return err_dlg.ShowModal() == wxID_OK ? DialogResult::Error : DialogResult::Cancelled;
             }
+            if (print_dirty) print_tab->load_config(print_patch);
+            if (filament_dirty) filament_tab->load_config(filament_patch);
+            any_applied = print_dirty || filament_dirty;
+        } catch (const std::exception& ex) {
+            PrintPilotErrorDialog err_dlg(parent_win, ex.what(), trigger);
+            return err_dlg.ShowModal() == wxID_OK ? DialogResult::Error : DialogResult::Cancelled;
         }
     }
 

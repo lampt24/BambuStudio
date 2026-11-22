@@ -1,0 +1,45 @@
+{
+    "type": "filament",
+    "name": "TINMORRY PETG Marble @BBL H2C",
+    "inherits": "Generic PETG @BBL H2C 0.4 nozzle",
+    "from": "system",
+    "setting_id": "TMSE98EF",
+    "instantiation": "true",
+    "filament_vendor": [
+        "TINMORRY"
+    ],
+    "fan_max_speed": [
+        "70"
+    ],
+    "fan_min_speed": [
+        "30"
+    ],
+    "filament_extruder_variant": [
+        "Direct Drive Standard",
+        "Direct Drive High Flow"
+    ],
+    "filament_flow_ratio": [
+        "0.95",
+        "nil"
+    ],
+    "nozzle_temperature": [
+        "240",
+        "nil"
+    ],
+    "nozzle_temperature_initial_layer": [
+        "245",
+        "nil"
+    ],
+    "nozzle_temperature_range_high": [
+        "260"
+    ],
+    "nozzle_temperature_range_low": [
+        "225"
+    ],
+    "textured_plate_temp": [
+        "75"
+    ],
+    "textured_plate_temp_initial_layer": [
+        "75"
+    ]
+}

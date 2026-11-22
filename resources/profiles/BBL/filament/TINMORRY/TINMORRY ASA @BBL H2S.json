@@ -1,0 +1,40 @@
+{
+    "type": "filament",
+    "name": "TINMORRY ASA @BBL H2S",
+    "inherits": "Generic ASA @BBL H2S 0.4 nozzle",
+    "from": "system",
+    "setting_id": "TMSAA48C",
+    "instantiation": "true",
+    "filament_vendor": [
+        "TINMORRY"
+    ],
+    "fan_max_speed": [
+        "50"
+    ],
+    "fan_min_speed": [
+        "20"
+    ],
+    "filament_extruder_variant": [
+        "Direct Drive Standard",
+        "Direct Drive High Flow"
+    ],
+    "filament_flow_ratio": [
+        "0.97",
+        "nil"
+    ],
+    "filament_retraction_length": [
+        "0.6",
+        "nil"
+    ],
+    "nozzle_temperature": [
+        "265",
+        "nil"
+    ],
+    "nozzle_temperature_initial_layer": [
+        "270",
+        "nil"
+    ],
+    "nozzle_temperature_range_low": [
+        "260"
+    ]
+}

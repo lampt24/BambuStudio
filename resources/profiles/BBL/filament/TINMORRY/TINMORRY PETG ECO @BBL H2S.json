@@ -1,0 +1,33 @@
+{
+    "type": "filament",
+    "name": "TINMORRY PETG ECO @BBL H2S",
+    "inherits": "Generic PETG @BBL H2S",
+    "from": "system",
+    "setting_id": "TMS0129A",
+    "instantiation": "true",
+    "filament_vendor": [
+        "TINMORRY"
+    ],
+    "filament_extruder_variant": [
+        "Direct Drive Standard",
+        "Direct Drive High Flow"
+    ],
+    "filament_retraction_length": [
+        "0.6",
+        "nil"
+    ],
+    "nozzle_temperature": [
+        "245",
+        "nil"
+    ],
+    "nozzle_temperature_initial_layer": [
+        "250",
+        "nil"
+    ],
+    "textured_plate_temp": [
+        "75"
+    ],
+    "textured_plate_temp_initial_layer": [
+        "75"
+    ]
+}

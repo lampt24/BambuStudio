@@ -1,0 +1,14 @@
+{
+    "type": "filament",
+    "name": "TINMORRY PLA @BBL P1P",
+    "inherits": "Generic PLA @BBL P1P",
+    "from": "system",
+    "setting_id": "TMS2A1E7",
+    "instantiation": "true",
+    "filament_vendor": [
+        "TINMORRY"
+    ],
+    "filament_flow_ratio": [
+        "0.97"
+    ]
+}

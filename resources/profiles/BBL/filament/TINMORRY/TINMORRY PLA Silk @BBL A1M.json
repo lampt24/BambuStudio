@@ -1,0 +1,14 @@
+{
+    "type": "filament",
+    "name": "TINMORRY PLA Silk @BBL A1M",
+    "inherits": "Generic PLA Silk @BBL A1M",
+    "from": "system",
+    "setting_id": "TMS8C067",
+    "instantiation": "true",
+    "filament_vendor": [
+        "TINMORRY"
+    ],
+    "slow_down_layer_time": [
+        "12"
+    ]
+}

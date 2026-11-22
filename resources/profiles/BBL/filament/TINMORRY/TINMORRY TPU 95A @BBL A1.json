@@ -1,0 +1,23 @@
+{
+    "type": "filament",
+    "name": "TINMORRY TPU 95A @BBL A1",
+    "inherits": "Bambu TPU 95A @BBL A1",
+    "from": "system",
+    "setting_id": "TMS7A097",
+    "instantiation": "true",
+    "filament_vendor": [
+        "TINMORRY"
+    ],
+    "filament_flow_ratio": [
+        "0.98"
+    ],
+    "filament_retraction_length": [
+        "1.4"
+    ],
+    "nozzle_temperature": [
+        "215"
+    ],
+    "nozzle_temperature_initial_layer": [
+        "220"
+    ]
+}

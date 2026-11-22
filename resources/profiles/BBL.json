@@ -1,7 +1,7 @@
 {
     "name": "Bambulab",
     "url": "http://www.bambulab.com/Parameters/vendor/BBL.json",
-    "version": "02.09.00.74",
+    "version": "02.09.01.00",
     "force_update": "0",
     "description": "the initial version of BBL configurations",
     "machine_model_list": [
@@ -8998,6 +8998,522 @@
         {
             "name": "Generic TPU(2.85mm) @BBL H3C 0.8 nozzle",
             "sub_path": "filament/Generic TPU(2.85mm) @BBL H3C 0.8 nozzle.json"
+        },
+        {
+            "name": "TINMORRY ABS @BBL H2C",
+            "sub_path": "filament/TINMORRY/TINMORRY ABS @BBL H2C.json"
+        },
+        {
+            "name": "TINMORRY ABS Pro @BBL H2D",
+            "sub_path": "filament/TINMORRY/TINMORRY ABS Pro @BBL H2D.json"
+        },
+        {
+            "name": "TINMORRY ABS Pro @BBL P2S",
+            "sub_path": "filament/TINMORRY/TINMORRY ABS Pro @BBL P2S.json"
+        },
+        {
+            "name": "TINMORRY ABS Pro @BBL X1C",
+            "sub_path": "filament/TINMORRY/TINMORRY ABS Pro @BBL X1C.json"
+        },
+        {
+            "name": "TINMORRY ABS Pro @BBL X2D",
+            "sub_path": "filament/TINMORRY/TINMORRY ABS Pro @BBL X2D.json"
+        },
+        {
+            "name": "TINMORRY ASA @BBL H2D",
+            "sub_path": "filament/TINMORRY/TINMORRY ASA @BBL H2D.json"
+        },
+        {
+            "name": "TINMORRY ASA @BBL H2S",
+            "sub_path": "filament/TINMORRY/TINMORRY ASA @BBL H2S.json"
+        },
+        {
+            "name": "TINMORRY ASA @BBL P2S",
+            "sub_path": "filament/TINMORRY/TINMORRY ASA @BBL P2S.json"
+        },
+        {
+            "name": "TINMORRY ASA @BBL X1C",
+            "sub_path": "filament/TINMORRY/TINMORRY ASA @BBL X1C.json"
+        },
+        {
+            "name": "TINMORRY ASA Basic @BBL X2D",
+            "sub_path": "filament/TINMORRY/TINMORRY ASA Basic @BBL X2D.json"
+        },
+        {
+            "name": "TINMORRY ASA Regular @BBL H2C",
+            "sub_path": "filament/TINMORRY/TINMORRY ASA Regular @BBL H2C.json"
+        },
+        {
+            "name": "TINMORRY ASA-CF @BBL H2D",
+            "sub_path": "filament/TINMORRY/TINMORRY ASA-CF @BBL H2D.json"
+        },
+        {
+            "name": "TINMORRY ASA-CF @BBL H2S",
+            "sub_path": "filament/TINMORRY/TINMORRY ASA-CF @BBL H2S.json"
+        },
+        {
+            "name": "TINMORRY ASA-CF @BBL X2D",
+            "sub_path": "filament/TINMORRY/TINMORRY ASA-CF @BBL X2D.json"
+        },
+        {
+            "name": "TINMORRY PA-CF @BBL X1C",
+            "sub_path": "filament/TINMORRY/TINMORRY PA-CF @BBL X1C.json"
+        },
+        {
+            "name": "TINMORRY PA-GF @BBL H2C",
+            "sub_path": "filament/TINMORRY/TINMORRY PA-GF @BBL H2C.json"
+        },
+        {
+            "name": "TINMORRY PAHT-CF @BBL X1C",
+            "sub_path": "filament/TINMORRY/TINMORRY PAHT-CF @BBL X1C.json"
+        },
+        {
+            "name": "TINMORRY PC-GF @BBL A1",
+            "sub_path": "filament/TINMORRY/TINMORRY PC-GF @BBL A1.json"
+        },
+        {
+            "name": "TINMORRY PC-GF @BBL H2C",
+            "sub_path": "filament/TINMORRY/TINMORRY PC-GF @BBL H2C.json"
+        },
+        {
+            "name": "TINMORRY PC-GF @BBL H2D",
+            "sub_path": "filament/TINMORRY/TINMORRY PC-GF @BBL H2D.json"
+        },
+        {
+            "name": "TINMORRY PC-GF @BBL P1P",
+            "sub_path": "filament/TINMORRY/TINMORRY PC-GF @BBL P1P.json"
+        },
+        {
+            "name": "TINMORRY PC-GF @BBL P1S",
+            "sub_path": "filament/TINMORRY/TINMORRY PC-GF @BBL P1S.json"
+        },
+        {
+            "name": "TINMORRY PC-GF @BBL X1C",
+            "sub_path": "filament/TINMORRY/TINMORRY PC-GF @BBL X1C.json"
+        },
+        {
+            "name": "TINMORRY PC-GF @BBL X2D",
+            "sub_path": "filament/TINMORRY/TINMORRY PC-GF @BBL X2D.json"
+        },
+        {
+            "name": "TINMORRY PET-CF @BBL X1C",
+            "sub_path": "filament/TINMORRY/TINMORRY PET-CF @BBL X1C.json"
+        },
+        {
+            "name": "TINMORRY PET-CF/GF @BBL H2S",
+            "sub_path": "filament/TINMORRY/TINMORRY PET-CF_GF @BBL H2S.json"
+        },
+        {
+            "name": "TINMORRY PET-GF @BBL A1",
+            "sub_path": "filament/TINMORRY/TINMORRY PET-GF @BBL A1.json"
+        },
+        {
+            "name": "TINMORRY PET-GF @BBL P1P",
+            "sub_path": "filament/TINMORRY/TINMORRY PET-GF @BBL P1P.json"
+        },
+        {
+            "name": "TINMORRY PET-GF @BBL X1C",
+            "sub_path": "filament/TINMORRY/TINMORRY PET-GF @BBL X1C.json"
+        },
+        {
+            "name": "TINMORRY PETG ECO @BBL A1",
+            "sub_path": "filament/TINMORRY/TINMORRY PETG ECO @BBL A1.json"
+        },
+        {
+            "name": "TINMORRY PETG ECO @BBL A1M",
+            "sub_path": "filament/TINMORRY/TINMORRY PETG ECO @BBL A1M.json"
+        },
+        {
+            "name": "TINMORRY PETG ECO @BBL A2L",
+            "sub_path": "filament/TINMORRY/TINMORRY PETG ECO @BBL A2L.json"
+        },
+        {
+            "name": "TINMORRY PETG ECO @BBL H2C",
+            "sub_path": "filament/TINMORRY/TINMORRY PETG ECO @BBL H2C.json"
+        },
+        {
+            "name": "TINMORRY PETG ECO @BBL H2D",
+            "sub_path": "filament/TINMORRY/TINMORRY PETG ECO @BBL H2D.json"
+        },
+        {
+            "name": "TINMORRY PETG ECO @BBL H2S",
+            "sub_path": "filament/TINMORRY/TINMORRY PETG ECO @BBL H2S.json"
+        },
+        {
+            "name": "TINMORRY PETG ECO @BBL P2S",
+            "sub_path": "filament/TINMORRY/TINMORRY PETG ECO @BBL P2S.json"
+        },
+        {
+            "name": "TINMORRY PETG ECO @BBL X1C",
+            "sub_path": "filament/TINMORRY/TINMORRY PETG ECO @BBL X1C.json"
+        },
+        {
+            "name": "TINMORRY PETG ECO @BBL X2D",
+            "sub_path": "filament/TINMORRY/TINMORRY PETG ECO @BBL X2D.json"
+        },
+        {
+            "name": "TINMORRY PETG Galaxy @BBL P2S",
+            "sub_path": "filament/TINMORRY/TINMORRY PETG Galaxy @BBL P2S.json"
+        },
+        {
+            "name": "TINMORRY PETG Galaxy @BBL X2D",
+            "sub_path": "filament/TINMORRY/TINMORRY PETG Galaxy @BBL X2D.json"
+        },
+        {
+            "name": "TINMORRY PETG HS @BBL A1",
+            "sub_path": "filament/TINMORRY/TINMORRY PETG HS @BBL A1.json"
+        },
+        {
+            "name": "TINMORRY PETG HS @BBL X1C",
+            "sub_path": "filament/TINMORRY/TINMORRY PETG HS @BBL X1C.json"
+        },
+        {
+            "name": "TINMORRY PETG Marble @BBL A1",
+            "sub_path": "filament/TINMORRY/TINMORRY PETG Marble @BBL A1.json"
+        },
+        {
+            "name": "TINMORRY PETG Marble @BBL A1M",
+            "sub_path": "filament/TINMORRY/TINMORRY PETG Marble @BBL A1M.json"
+        },
+        {
+            "name": "TINMORRY PETG Marble @BBL H2C",
+            "sub_path": "filament/TINMORRY/TINMORRY PETG Marble @BBL H2C.json"
+        },
+        {
+            "name": "TINMORRY PETG Marble @BBL H2D",
+            "sub_path": "filament/TINMORRY/TINMORRY PETG Marble @BBL H2D.json"
+        },
+        {
+            "name": "TINMORRY PETG Marble @BBL H2S",
+            "sub_path": "filament/TINMORRY/TINMORRY PETG Marble @BBL H2S.json"
+        },
+        {
+            "name": "TINMORRY PETG Marble @BBL P2S",
+            "sub_path": "filament/TINMORRY/TINMORRY PETG Marble @BBL P2S.json"
+        },
+        {
+            "name": "TINMORRY PETG Marble @BBL X1C",
+            "sub_path": "filament/TINMORRY/TINMORRY PETG Marble @BBL X1C.json"
+        },
+        {
+            "name": "TINMORRY PETG Marble @BBL X2D",
+            "sub_path": "filament/TINMORRY/TINMORRY PETG Marble @BBL X2D.json"
+        },
+        {
+            "name": "TINMORRY PETG Matte @BBL A1",
+            "sub_path": "filament/TINMORRY/TINMORRY PETG Matte @BBL A1.json"
+        },
+        {
+            "name": "TINMORRY PETG Matte @BBL A1M",
+            "sub_path": "filament/TINMORRY/TINMORRY PETG Matte @BBL A1M.json"
+        },
+        {
+            "name": "TINMORRY PETG Matte @BBL P2S",
+            "sub_path": "filament/TINMORRY/TINMORRY PETG Matte @BBL P2S.json"
+        },
+        {
+            "name": "TINMORRY PETG Metallic @BBL A1",
+            "sub_path": "filament/TINMORRY/TINMORRY PETG Metallic @BBL A1.json"
+        },
+        {
+            "name": "TINMORRY PETG Metallic @BBL A1M",
+            "sub_path": "filament/TINMORRY/TINMORRY PETG Metallic @BBL A1M.json"
+        },
+        {
+            "name": "TINMORRY PETG Metallic @BBL A2L",
+            "sub_path": "filament/TINMORRY/TINMORRY PETG Metallic @BBL A2L.json"
+        },
+        {
+            "name": "TINMORRY PETG Metallic @BBL H2C",
+            "sub_path": "filament/TINMORRY/TINMORRY PETG Metallic @BBL H2C.json"
+        },
+        {
+            "name": "TINMORRY PETG Metallic @BBL H2S",
+            "sub_path": "filament/TINMORRY/TINMORRY PETG Metallic @BBL H2S.json"
+        },
+        {
+            "name": "TINMORRY PETG Metallic @BBL P2S",
+            "sub_path": "filament/TINMORRY/TINMORRY PETG Metallic @BBL P2S.json"
+        },
+        {
+            "name": "TINMORRY PETG Metallic @BBL X1C",
+            "sub_path": "filament/TINMORRY/TINMORRY PETG Metallic @BBL X1C.json"
+        },
+        {
+            "name": "TINMORRY PETG Metallic @BBL X2D",
+            "sub_path": "filament/TINMORRY/TINMORRY PETG Metallic @BBL X2D.json"
+        },
+        {
+            "name": "TINMORRY PETG Sparkly @BBL P2S",
+            "sub_path": "filament/TINMORRY/TINMORRY PETG Sparkly @BBL P2S.json"
+        },
+        {
+            "name": "TINMORRY PETG Sparkly @BBL X2D",
+            "sub_path": "filament/TINMORRY/TINMORRY PETG Sparkly @BBL X2D.json"
+        },
+        {
+            "name": "TINMORRY PETG-CF @BBL A1",
+            "sub_path": "filament/TINMORRY/TINMORRY PETG-CF @BBL A1.json"
+        },
+        {
+            "name": "TINMORRY PETG-CF @BBL A1M",
+            "sub_path": "filament/TINMORRY/TINMORRY PETG-CF @BBL A1M.json"
+        },
+        {
+            "name": "TINMORRY PETG-CF @BBL H2C",
+            "sub_path": "filament/TINMORRY/TINMORRY PETG-CF @BBL H2C.json"
+        },
+        {
+            "name": "TINMORRY PETG-CF @BBL H2D",
+            "sub_path": "filament/TINMORRY/TINMORRY PETG-CF @BBL H2D.json"
+        },
+        {
+            "name": "TINMORRY PETG-CF @BBL H2S",
+            "sub_path": "filament/TINMORRY/TINMORRY PETG-CF @BBL H2S.json"
+        },
+        {
+            "name": "TINMORRY PETG-CF @BBL P1P",
+            "sub_path": "filament/TINMORRY/TINMORRY PETG-CF @BBL P1P.json"
+        },
+        {
+            "name": "TINMORRY PETG-CF @BBL P2S",
+            "sub_path": "filament/TINMORRY/TINMORRY PETG-CF @BBL P2S.json"
+        },
+        {
+            "name": "TINMORRY PETG-CF @BBL X1C",
+            "sub_path": "filament/TINMORRY/TINMORRY PETG-CF @BBL X1C.json"
+        },
+        {
+            "name": "TINMORRY PETG-CF @BBL X2D",
+            "sub_path": "filament/TINMORRY/TINMORRY PETG-CF @BBL X2D.json"
+        },
+        {
+            "name": "TINMORRY PETG-GF @BBL A1",
+            "sub_path": "filament/TINMORRY/TINMORRY PETG-GF @BBL A1.json"
+        },
+        {
+            "name": "TINMORRY PETG-GF @BBL A1M",
+            "sub_path": "filament/TINMORRY/TINMORRY PETG-GF @BBL A1M.json"
+        },
+        {
+            "name": "TINMORRY PETG-GF @BBL H2C",
+            "sub_path": "filament/TINMORRY/TINMORRY PETG-GF @BBL H2C.json"
+        },
+        {
+            "name": "TINMORRY PETG-GF @BBL H2D",
+            "sub_path": "filament/TINMORRY/TINMORRY PETG-GF @BBL H2D.json"
+        },
+        {
+            "name": "TINMORRY PETG-GF @BBL H2S",
+            "sub_path": "filament/TINMORRY/TINMORRY PETG-GF @BBL H2S.json"
+        },
+        {
+            "name": "TINMORRY PETG-GF @BBL P2S",
+            "sub_path": "filament/TINMORRY/TINMORRY PETG-GF @BBL P2S.json"
+        },
+        {
+            "name": "TINMORRY PETG-GF @BBL X1C",
+            "sub_path": "filament/TINMORRY/TINMORRY PETG-GF @BBL X1C.json"
+        },
+        {
+            "name": "TINMORRY PETG-GF @BBL X2D",
+            "sub_path": "filament/TINMORRY/TINMORRY PETG-GF @BBL X2D.json"
+        },
+        {
+            "name": "TINMORRY PLA @BBL A1",
+            "sub_path": "filament/TINMORRY/TINMORRY PLA @BBL A1.json"
+        },
+        {
+            "name": "TINMORRY PLA @BBL A1M",
+            "sub_path": "filament/TINMORRY/TINMORRY PLA @BBL A1M.json"
+        },
+        {
+            "name": "TINMORRY PLA @BBL P1P",
+            "sub_path": "filament/TINMORRY/TINMORRY PLA @BBL P1P.json"
+        },
+        {
+            "name": "TINMORRY PLA @BBL X1C",
+            "sub_path": "filament/TINMORRY/TINMORRY PLA @BBL X1C.json"
+        },
+        {
+            "name": "TINMORRY PLA Galaxy @BBL A1",
+            "sub_path": "filament/TINMORRY/TINMORRY PLA Galaxy @BBL A1.json"
+        },
+        {
+            "name": "TINMORRY PLA Galaxy @BBL P2S",
+            "sub_path": "filament/TINMORRY/TINMORRY PLA Galaxy @BBL P2S.json"
+        },
+        {
+            "name": "TINMORRY PLA Matte @BBL A1",
+            "sub_path": "filament/TINMORRY/TINMORRY PLA Matte @BBL A1.json"
+        },
+        {
+            "name": "TINMORRY PLA Matte @BBL A1M",
+            "sub_path": "filament/TINMORRY/TINMORRY PLA Matte @BBL A1M.json"
+        },
+        {
+            "name": "TINMORRY PLA Matte @BBL H2D",
+            "sub_path": "filament/TINMORRY/TINMORRY PLA Matte @BBL H2D.json"
+        },
+        {
+            "name": "TINMORRY PLA Matte @BBL H2S",
+            "sub_path": "filament/TINMORRY/TINMORRY PLA Matte @BBL H2S.json"
+        },
+        {
+            "name": "TINMORRY PLA Matte @BBL P1P",
+            "sub_path": "filament/TINMORRY/TINMORRY PLA Matte @BBL P1P.json"
+        },
+        {
+            "name": "TINMORRY PLA Matte @BBL P2S",
+            "sub_path": "filament/TINMORRY/TINMORRY PLA Matte @BBL P2S.json"
+        },
+        {
+            "name": "TINMORRY PLA Matte @BBL X1C",
+            "sub_path": "filament/TINMORRY/TINMORRY PLA Matte @BBL X1C.json"
+        },
+        {
+            "name": "TINMORRY PLA Matte @BBL X2D",
+            "sub_path": "filament/TINMORRY/TINMORRY PLA Matte @BBL X2D.json"
+        },
+        {
+            "name": "TINMORRY PLA Metallic @BBL P1S",
+            "sub_path": "filament/TINMORRY/TINMORRY PLA Metallic @BBL P1S.json"
+        },
+        {
+            "name": "TINMORRY PLA Rapid @BBL A2L",
+            "sub_path": "filament/TINMORRY/TINMORRY PLA Rapid @BBL A2L.json"
+        },
+        {
+            "name": "TINMORRY PLA Rapid @BBL H2C",
+            "sub_path": "filament/TINMORRY/TINMORRY PLA Rapid @BBL H2C.json"
+        },
+        {
+            "name": "TINMORRY PLA Rapid @BBL H2S",
+            "sub_path": "filament/TINMORRY/TINMORRY PLA Rapid @BBL H2S.json"
+        },
+        {
+            "name": "TINMORRY PLA Rapid @BBL P2S",
+            "sub_path": "filament/TINMORRY/TINMORRY PLA Rapid @BBL P2S.json"
+        },
+        {
+            "name": "TINMORRY PLA Silk @BBL A1",
+            "sub_path": "filament/TINMORRY/TINMORRY PLA Silk @BBL A1.json"
+        },
+        {
+            "name": "TINMORRY PLA Silk @BBL A1M",
+            "sub_path": "filament/TINMORRY/TINMORRY PLA Silk @BBL A1M.json"
+        },
+        {
+            "name": "TINMORRY PLA Silk @BBL A2L",
+            "sub_path": "filament/TINMORRY/TINMORRY PLA Silk @BBL A2L.json"
+        },
+        {
+            "name": "TINMORRY PLA Silk @BBL H2C",
+            "sub_path": "filament/TINMORRY/TINMORRY PLA Silk @BBL H2C.json"
+        },
+        {
+            "name": "TINMORRY PLA Silk @BBL H2S",
+            "sub_path": "filament/TINMORRY/TINMORRY PLA Silk @BBL H2S.json"
+        },
+        {
+            "name": "TINMORRY PLA Silk @BBL P1P",
+            "sub_path": "filament/TINMORRY/TINMORRY PLA Silk @BBL P1P.json"
+        },
+        {
+            "name": "TINMORRY PLA Silk @BBL X1C",
+            "sub_path": "filament/TINMORRY/TINMORRY PLA Silk @BBL X1C.json"
+        },
+        {
+            "name": "TINMORRY PLA Silk @BBL X2D",
+            "sub_path": "filament/TINMORRY/TINMORRY PLA Silk @BBL X2D.json"
+        },
+        {
+            "name": "TINMORRY PLA-CF @BBL A1",
+            "sub_path": "filament/TINMORRY/TINMORRY PLA-CF @BBL A1.json"
+        },
+        {
+            "name": "TINMORRY PLA-CF @BBL A1M",
+            "sub_path": "filament/TINMORRY/TINMORRY PLA-CF @BBL A1M.json"
+        },
+        {
+            "name": "TINMORRY PLA-CF @BBL H2C",
+            "sub_path": "filament/TINMORRY/TINMORRY PLA-CF @BBL H2C.json"
+        },
+        {
+            "name": "TINMORRY PLA-CF @BBL H2D",
+            "sub_path": "filament/TINMORRY/TINMORRY PLA-CF @BBL H2D.json"
+        },
+        {
+            "name": "TINMORRY PLA-CF @BBL P1P",
+            "sub_path": "filament/TINMORRY/TINMORRY PLA-CF @BBL P1P.json"
+        },
+        {
+            "name": "TINMORRY PLA-CF @BBL X1C",
+            "sub_path": "filament/TINMORRY/TINMORRY PLA-CF @BBL X1C.json"
+        },
+        {
+            "name": "TINMORRY PP-CF @BBL H2C",
+            "sub_path": "filament/TINMORRY/TINMORRY PP-CF @BBL H2C.json"
+        },
+        {
+            "name": "TINMORRY PP-CF @BBL P2S",
+            "sub_path": "filament/TINMORRY/TINMORRY PP-CF @BBL P2S.json"
+        },
+        {
+            "name": "TINMORRY PP-CF @BBL X1C",
+            "sub_path": "filament/TINMORRY/TINMORRY PP-CF @BBL X1C.json"
+        },
+        {
+            "name": "TINMORRY TPU 95A @BBL A1",
+            "sub_path": "filament/TINMORRY/TINMORRY TPU 95A @BBL A1.json"
+        },
+        {
+            "name": "TINMORRY TPU 95A @BBL A1M",
+            "sub_path": "filament/TINMORRY/TINMORRY TPU 95A @BBL A1M.json"
+        },
+        {
+            "name": "TINMORRY TPU 95A @BBL A2L",
+            "sub_path": "filament/TINMORRY/TINMORRY TPU 95A @BBL A2L.json"
+        },
+        {
+            "name": "TINMORRY TPU 95A @BBL H2C",
+            "sub_path": "filament/TINMORRY/TINMORRY TPU 95A @BBL H2C.json"
+        },
+        {
+            "name": "TINMORRY TPU 95A @BBL H2D",
+            "sub_path": "filament/TINMORRY/TINMORRY TPU 95A @BBL H2D.json"
+        },
+        {
+            "name": "TINMORRY TPU 95A @BBL H2S",
+            "sub_path": "filament/TINMORRY/TINMORRY TPU 95A @BBL H2S.json"
+        },
+        {
+            "name": "TINMORRY TPU 95A @BBL P1P",
+            "sub_path": "filament/TINMORRY/TINMORRY TPU 95A @BBL P1P.json"
+        },
+        {
+            "name": "TINMORRY TPU 95A @BBL P2S",
+            "sub_path": "filament/TINMORRY/TINMORRY TPU 95A @BBL P2S.json"
+        },
+        {
+            "name": "TINMORRY TPU 95A @BBL X1C",
+            "sub_path": "filament/TINMORRY/TINMORRY TPU 95A @BBL X1C.json"
+        },
+        {
+            "name": "TINMORRY TPU 95A @BBL X2D",
+            "sub_path": "filament/TINMORRY/TINMORRY TPU 95A @BBL X2D.json"
+        },
+        {
+            "name": "TINMORRY TPU-GF @BBL A1M",
+            "sub_path": "filament/TINMORRY/TINMORRY TPU-GF @BBL A1M.json"
+        },
+        {
+            "name": "TINMORRY TPU-GF @BBL P2S",
+            "sub_path": "filament/TINMORRY/TINMORRY TPU-GF @BBL P2S.json"
+        },
+        {
+            "name": "TINMORRY TPU-GF @BBL X1C",
+            "sub_path": "filament/TINMORRY/TINMORRY TPU-GF @BBL X1C.json"
         }
     ],
     "machine_list": [

@@ -63,6 +63,9 @@ std::shared_ptr<CancelToken> start_analysis(
     const std::string&      objective,
     const std::string&      trigger,
     const std::string&      filename,
+    int                     plate_index,
+    const std::string&      printer_serial,
+    const std::string&      slice_stats_json,
     AnalysisDoneFn          done_fn)
 {
     auto cancel = std::make_shared<CancelToken>();
@@ -74,6 +77,17 @@ std::shared_ptr<CancelToken> start_analysis(
     body["objective"]      = objective;
     body["trigger"]        = trigger;
     body["settings"] = nlohmann::json::parse(settings_json);
+    // The exported 3MF holds every plate; the server narrows geometry to this one.
+    if (plate_index > 0)
+        body["plate_index"] = plate_index;
+    // This build can validate and apply settings_v2 changes (enums, bools, filament values).
+    body["capabilities"] = nlohmann::json::array({"settings_v2"});
+    if (!printer_serial.empty())
+        body["printer_serial"] = printer_serial;
+    if (!slice_stats_json.empty()) {
+        auto stats = nlohmann::json::parse(slice_stats_json, nullptr, false);
+        if (!stats.is_discarded()) body["slice_stats"] = stats;
+    }
     std::string body_str = body.dump();
 
     // Shared state for the lambda captures; avoids dangling refs
@@ -114,15 +128,24 @@ std::shared_ptr<CancelToken> start_analysis(
                         for (auto& w : j["warnings"])
                             result.warnings.push_back(w.get<std::string>());
                     if (j.contains("changes") && j["changes"].is_array()) {
+                        auto text_of = [](const nlohmann::json& v) -> std::string {
+                            if (v.is_number()) return v.dump();
+                            if (v.is_boolean()) return v.get<bool>() ? "1" : "0";
+                            if (v.is_string()) return v.get<std::string>();
+                            throw std::runtime_error("Invalid setting change value");
+                        };
                         for (auto& c : j["changes"]) {
                             SettingChange sc;
                             sc.key       = c.value("key",    std::string{});
-                            if (!c.contains("old") || !c["old"].is_number() ||
-                                !c.contains("value") || !c["value"].is_number())
-                                throw std::runtime_error("Invalid numeric setting change");
-                            sc.old_value = c["old"].dump();
-                            sc.new_value = c["value"].dump();
+                            if (!c.contains("old") || !c.contains("value"))
+                                throw std::runtime_error("Invalid setting change");
+                            sc.old_value = text_of(c["old"]);
+                            sc.new_value = text_of(c["value"]);
                             sc.reason    = c.value("reason", std::string{});
+                            sc.evidence  = c.value("evidence", std::string{});
+                            sc.scope     = c.value("scope", std::string("print"));
+                            sc.filament_index = c.contains("filament_index") && c["filament_index"].is_number_integer()
+                                                    ? c["filament_index"].get<int>() : 0;
                             if (!sc.key.empty() && !sc.new_value.empty())
                                 result.changes.push_back(std::move(sc));
                         }

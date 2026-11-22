@@ -28,6 +28,7 @@
 <symbol id="i-lightbulb" viewBox="0 0 24 24"><path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5" /> <path d="M9 18h6" /> <path d="M10 22h4" /></symbol>
 <symbol id="i-lightbulb-off" viewBox="0 0 24 24"><path d="M16.8 11.2c.8-.9 1.2-2 1.2-3.2a6 6 0 0 0-9.3-5" /> <path d="m2 2 20 20" /> <path d="M6.3 6.3a4.67 4.67 0 0 0 1.2 5.2c.7.7 1.3 1.5 1.5 2.5" /> <path d="M9 18h6" /> <path d="M10 22h4" /></symbol>
 <symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18" /> <path d="m6 6 12 12" /></symbol>
+<symbol id="i-pencil" viewBox="0 0 24 24"><path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z" /> <path d="m15 5 4 4" /></symbol>
 <symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5" /></symbol>
 <symbol id="i-check-check" viewBox="0 0 24 24"><path d="M18 6 7 17l-5-5" /> <path d="m22 10-7.5 7.5L13 16" /></symbol>
 <symbol id="i-video" viewBox="0 0 24 24"><path d="m16 13 5.223 3.482a.5.5 0 0 0 .777-.416V7.87a.5.5 0 0 0-.752-.432L16 10.5" /> <rect x="2" y="6" width="14" height="12" rx="2" /></symbol>
@@ -61,16 +62,20 @@
 <symbol id="i-user-round" viewBox="0 0 24 24"><circle cx="12" cy="8" r="5" /> <path d="M20 21a8 8 0 0 0-16 0" /></symbol>
 <symbol id="i-key-round" viewBox="0 0 24 24"><path d="M2.586 17.414A2 2 0 0 0 2 18.828V21a1 1 0 0 0 1 1h3a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h1a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h.172a2 2 0 0 0 1.414-.586l.814-.814a6.5 6.5 0 1 0-4-4z" /> <circle cx="16.5" cy="7.5" r=".5" fill="currentColor" /></symbol>
 <symbol id="i-image-off" viewBox="0 0 24 24"><line x1="2" x2="22" y1="2" y2="22" /> <path d="M10.41 10.41a2 2 0 1 1-2.83-2.83" /> <line x1="13.5" x2="6" y1="13.5" y2="21" /> <line x1="18" x2="21" y1="12" y2="15" /> <path d="M3.59 3.59A1.99 1.99 0 0 0 3 5v14a2 2 0 0 0 2 2h14c.55 0 1.052-.22 1.41-.59" /> <path d="M21 15V5a2 2 0 0 0-2-2H9" /></symbol>
+<symbol id="i-upload" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /> <polyline points="17 8 12 3 7 8" /> <line x1="12" x2="12" y1="3" y2="15" /></symbol>
+<symbol id="i-download" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /> <polyline points="7 10 12 15 17 10" /> <line x1="12" x2="12" y1="15" y2="3" /></symbol>
+<symbol id="i-box" viewBox="0 0 24 24"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z" /> <path d="m3.3 7 8.7 5 8.7-5" /> <path d="M12 22V12" /></symbol>
+<symbol id="i-rotate-ccw" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" /> <path d="M3 3v5h5" /></symbol>
 </svg>
 
 <div class="app">
   <!-- Sidebar (desktop) / top bar + bottom tabs (phone) -->
   <aside class="side">
     <a class="brand" href="#printers" aria-label="PrintPilot">
-      <span class="brand-mark" aria-hidden="true"><svg class="i"><use href="#i-printer"/></svg></span>
+      <img class="brand-mark" src="logo.svg" alt="">
       <span class="brand-text">
         <span class="brand-name">PrintPilot</span>
-        <span class="brand-sub">Trạm điều khiển in 3D</span>
+        <span class="brand-sub">TRẠM ĐIỀU KHIỂN IN 3D</span>
       </span>
     </a>
 
@@ -89,6 +94,14 @@
       <a class="nav-item" href="#ai" data-tab="ai">
         <span class="nav-icon"><svg class="i"><use href="#i-wand-sparkles"/></svg></span><span class="nav-label">Tối ưu AI</span>
         <span id="nav-ai-count" class="nav-count num" hidden></span>
+      </a>
+      <a class="nav-item" href="#filaments" data-tab="filaments">
+        <span class="nav-icon"><svg class="i"><use href="#i-layers"/></svg></span><span class="nav-label">Nhựa in</span>
+        <span id="nav-fil-count" class="nav-count num" hidden></span>
+      </a>
+      <a class="nav-item" href="#care" data-tab="care">
+        <span class="nav-icon"><svg class="i"><use href="#i-settings"/></svg></span><span class="nav-label">Bảo trì</span>
+        <span id="nav-care-count" class="nav-badge num" hidden></span>
       </a>
       <a class="nav-item" href="#log" data-tab="log">
         <span class="nav-icon"><svg class="i"><use href="#i-history"/></svg></span><span class="nav-label">Nhật ký</span>
@@ -153,8 +166,9 @@
         </div>
         <span id="sync-status" class="sync num" aria-live="polite">Đang tải…</span>
       </header>
+      <div id="fleet-summary" class="fleet-summary" aria-label="Tổng quan máy in"></div>
       <div class="printers-layout">
-        <div class="printer-col">
+        <div class="printer-col"><div class="fleet-title"><h3>Tất cả máy in</h3><span id="fleet-count"></span></div>
           <div id="printers" class="printer-grid"></div>
           <div id="printers-empty" class="empty" hidden>
             <svg class="i empty-icon"><use href="#i-printer"/></svg>
@@ -168,7 +182,22 @@
         <div class="detail-heading">
           <span id="detail-status" class="status-pill"></span>
           <div>
-            <h2 id="detail-title" class="dialog-title"></h2>
+            <div class="detail-title-row">
+              <h2 id="detail-title" class="dialog-title"></h2>
+              <button type="button" id="btn-rename" class="icon-btn icon-btn-sm" aria-label="Đổi tên máy in" data-tip="Đổi tên">
+                <svg class="i"><use href="#i-pencil"/></svg>
+              </button>
+            </div>
+            <form id="rename-form" class="rename-form" hidden>
+              <input id="rename-input" type="text" maxlength="80" autocomplete="off" spellcheck="false" aria-label="Tên máy in">
+              <button type="submit" class="icon-btn icon-btn-sm" aria-label="Lưu tên" data-tip="Lưu">
+                <svg class="i"><use href="#i-check"/></svg>
+              </button>
+              <button type="button" id="rename-cancel" class="icon-btn icon-btn-sm" aria-label="Huỷ" data-tip="Huỷ">
+                <svg class="i"><use href="#i-x"/></svg>
+              </button>
+            </form>
+            <p id="rename-error" class="rename-error" role="alert" hidden></p>
             <p id="detail-sub" class="dialog-sub"></p>
           </div>
         </div>
@@ -191,26 +220,26 @@
           <div id="detail-thumbs" class="thumbs" role="listbox" aria-label="Ảnh trước đó"></div>
         </div>
 
-        <aside class="detail-side">
+        <aside class="detail-side"><div id="detail-job" class="detail-job"></div>
           <section class="ctl" aria-labelledby="h-controls">
             <h3 id="h-controls" class="eyebrow">Điều khiển</h3>
             <div class="ctl-buttons">
-              <button type="button" class="ctl-btn" data-cmd="pause" aria-label="Tạm dừng" data-tip="Tạm dừng"><svg class="i"><use href="#i-pause"/></svg></button>
-              <button type="button" class="ctl-btn" data-cmd="resume" aria-label="Tiếp tục" data-tip="Tiếp tục"><svg class="i"><use href="#i-play"/></svg></button>
-              <button type="button" class="ctl-btn ctl-danger" data-cmd="stop" aria-label="Dừng in" data-tip="Dừng in"><svg class="i"><use href="#i-octagon-x"/></svg></button>
+              <button type="button" class="ctl-btn" data-cmd="pause" aria-label="Tạm dừng" data-tip="Tạm dừng"><svg class="i"><use href="#i-pause"/></svg><span>Tạm dừng</span></button>
+              <button type="button" class="ctl-btn" data-cmd="resume" aria-label="Tiếp tục" data-tip="Tiếp tục"><svg class="i"><use href="#i-play"/></svg><span>Tiếp tục</span></button>
+              <button type="button" class="ctl-btn ctl-danger" data-cmd="stop" aria-label="Dừng in" data-tip="Dừng in"><svg class="i"><use href="#i-octagon-x"/></svg><span>Dừng in</span></button>
               <span class="ctl-sep" aria-hidden="true"></span>
               <button type="button" class="ctl-btn" data-cmd="light" id="ctl-light" aria-label="Bật đèn" data-tip="Bật đèn">
                 <svg class="i" data-light="on"><use href="#i-lightbulb"/></svg>
-                <svg class="i" data-light="off" hidden><use href="#i-lightbulb-off"/></svg>
+                <svg class="i" data-light="off" hidden><use href="#i-lightbulb-off"/></svg><span>Đèn khoang in</span>
               </button>
             </div>
             <div class="speed">
               <span class="speed-label">Tốc độ <b id="speed-current">--</b></span>
               <div class="segmented segmented-icons" role="group" aria-label="Tốc độ in">
-                <button type="button" class="seg" data-cmd="speed" data-level="1" aria-label="Êm" data-tip="Êm"><svg class="i"><use href="#i-turtle"/></svg></button>
-                <button type="button" class="seg" data-cmd="speed" data-level="2" aria-label="Chuẩn" data-tip="Chuẩn"><svg class="i"><use href="#i-gauge"/></svg></button>
-                <button type="button" class="seg" data-cmd="speed" data-level="3" aria-label="Thể thao" data-tip="Thể thao"><svg class="i"><use href="#i-zap"/></svg></button>
-                <button type="button" class="seg" data-cmd="speed" data-level="4" aria-label="Siêu tốc" data-tip="Siêu tốc"><svg class="i"><use href="#i-rocket"/></svg></button>
+                <button type="button" class="seg" data-cmd="speed" data-level="1" aria-label="Êm" data-tip="Êm"><span>Êm · 50%</span></button>
+                <button type="button" class="seg" data-cmd="speed" data-level="2" aria-label="Chuẩn" data-tip="Chuẩn"><span>Chuẩn · 100%</span></button>
+                <button type="button" class="seg" data-cmd="speed" data-level="3" aria-label="Thể thao" data-tip="Thể thao"><span>Thể thao · 124%</span></button>
+                <button type="button" class="seg" data-cmd="speed" data-level="4" aria-label="Siêu tốc" data-tip="Siêu tốc"><span>Siêu tốc · 166%</span></button>
               </div>
             </div>
             <p id="ctl-status" class="ctl-status" role="status"></p>
@@ -225,6 +254,7 @@
         </aside>
       </div>
 
+      <section id="filament-panel" class="filament-panel" aria-label="Filament"></section>
       <div class="detail-lower">
         <section>
           <h3 class="eyebrow">Cảnh báo của máy này</h3>
@@ -266,16 +296,184 @@
     <section class="view" data-view="ai" aria-labelledby="h-ai" hidden>
       <header class="view-head">
         <div>
-          <h1 id="h-ai" class="view-title">Tối ưu thông số</h1>
-          <p class="view-sub">Đề xuất của AI cho từng model trước khi in</p>
+          <h1 id="h-ai" class="view-title">Tối ưu AI <span class="ai-tag">Thông số in</span></h1>
+          
+        </div>
+        <div class="upload-bar">
+          <label class="select">
+            <svg class="i"><use href="#i-sparkles"/></svg>
+            <span class="sr-only">Mục tiêu phân tích</span>
+            <select id="upload-objective">
+              <option value="quality">Chất lượng</option>
+              <option value="strength">Độ bền</option>
+              <option value="speed">Tốc độ</option>
+              <option value="economy">Tiết kiệm</option>
+            </select>
+          </label>
+          <button id="upload-btn" type="button" class="btn btn-primary"><svg class="i"><use href="#i-upload"/></svg>Tải file 3MF lên</button>
+          <input id="upload-input" type="file" accept=".3mf" hidden>
         </div>
       </header>
+      <p id="upload-status" class="upload-status" role="status" aria-live="polite" hidden></p>
       <ul id="analyses" class="analysis-list"></ul>
       <div id="analyses-empty" class="empty" hidden>
         <svg class="i empty-icon"><use href="#i-wand-sparkles"/></svg>
         <p class="empty-title">Chưa có lượt phân tích</p>
-        <p class="empty-text">Bấm <b>AI auto setting</b> hoặc gửi in từ Bambu Studio (bản PrintPilot), đề xuất sẽ hiện ở đây.</p>
+        <p class="empty-text">Tải file 3MF lên, bấm <b>AI auto setting</b> hoặc gửi in từ Bambu Studio (bản PrintPilot), đề xuất sẽ hiện ở đây.</p>
       </div>
+    </section>
+
+    <!-- Filament library -->
+    <section class="view" data-view="filaments" aria-labelledby="h-fil" hidden>
+      <header class="view-head">
+        <div>
+          <h1 id="h-fil" class="view-title">Nhựa in</h1>
+          <p class="view-sub">Preset nhựa dùng được cho máy in; chọn và tải về để nhập vào Bambu Studio.</p>
+        </div>
+        <div class="upload-bar">
+          <label class="select">
+            <svg class="i"><use href="#i-printer"/></svg>
+            <span class="sr-only">Dòng máy in</span>
+            <select id="fil-printer"></select>
+          </label>
+          <label class="select">
+            <span class="sr-only">Cỡ đầu phun</span>
+            <select id="fil-nozzle"><option value="0.2">0.2 mm</option><option value="0.4" selected>0.4 mm</option><option value="0.6">0.6 mm</option><option value="0.8">0.8 mm</option></select>
+          </label>
+          <button id="fil-add" type="button" class="btn"><svg class="i"><use href="#i-pencil"/></svg>Thêm nhựa</button>
+          <button id="fil-import" type="button" class="btn"><svg class="i"><use href="#i-upload"/></svg>Nhập file profile</button>
+          <input id="fil-import-input" type="file" accept=".json,.bbsflmt,.zip" multiple hidden>
+        </div>
+      </header>
+      <div class="fil-toolbar">
+        <label class="fil-search">
+          <svg class="i"><use href="#i-search"/></svg>
+          <span class="sr-only">Tìm nhựa</span>
+          <input id="fil-search" type="search" placeholder="Tìm theo hãng, loại hoặc tên preset">
+        </label>
+        <label class="select">
+          <span class="sr-only">Hãng</span>
+          <select id="fil-vendor"><option value="">Tất cả hãng</option></select>
+        </label>
+        <label class="fil-check"><input id="fil-only-export" type="checkbox"> Chỉ preset cần nhập vào Studio</label>
+        <button id="fil-export" type="button" class="btn btn-primary" disabled><svg class="i"><use href="#i-download"/></svg><span>Tải về cho Bambu Studio</span></button>
+      </div>
+      <p id="fil-status" class="upload-status" role="status" aria-live="polite" hidden></p>
+      <section class="spool-section" aria-labelledby="h-spools">
+        <div class="spool-head">
+          <h2 id="h-spools">Cuộn nhựa đang có</h2>
+          <button id="spool-add" type="button" class="btn"><svg class="i"><use href="#i-pencil"/></svg>Thêm cuộn</button>
+        </div>
+        <p class="muted">Gắn cuộn vào khay AMS để PrintPilot tự trừ khối lượng sau mỗi lần in và nhắc sấy nhựa hút ẩm.</p>
+        <div id="spool-list" class="spool-list"></div>
+      </section>
+      <details class="fil-help">
+        <summary>Cách nhập vào Bambu Studio</summary>
+        <ol>
+          <li>Tick các preset cần dùng rồi bấm <b>Tải về cho Bambu Studio</b> (file <code>.bbsflmt</code>).</li>
+          <li>Trong Bambu Studio: <b>File → Import → Import Configs…</b>, chọn file vừa tải.</li>
+          <li>Preset hiện trong danh sách nhựa ở mục <b>User presets</b>, đúng dòng máy đã chọn ở đây.</li>
+        </ol>
+        <p class="muted">Preset của Bambu Lab, Generic, SUNLU, eSUN, Polymaker, Overture đã có sẵn trong mọi bản Bambu Studio nên không cần tải. Bản PrintPilot Studio đã có sẵn TINMORRY.</p>
+      </details>
+      <div id="fil-types" class="fil-types"></div>
+      <div id="fil-empty" class="empty" hidden>
+        <svg class="i empty-icon"><use href="#i-layers"/></svg>
+        <p class="empty-title">Không có preset phù hợp</p>
+        <p class="empty-text">Đổi bộ lọc hoặc dòng máy in.</p>
+      </div>
+      <dialog id="spool-dialog" class="fil-dialog" aria-labelledby="spool-dialog-title">
+        <form id="spool-form" method="dialog">
+          <h2 id="spool-dialog-title">Thêm cuộn nhựa</h2>
+          <div class="fil-grid">
+            <label class="wide">Tên cuộn<input name="name" required maxlength="120" placeholder="VD: TINMORRY PETG ECO đen"></label>
+            <label>Hãng<input name="vendor" maxlength="60"></label>
+            <label>Loại nhựa<input name="material" maxlength="30" list="spool-materials" placeholder="PETG"></label>
+            <label class="wide">Preset nhựa<input name="preset" maxlength="120" list="spool-presets" placeholder="Chọn preset dùng cho cuộn này"></label>
+            <label>Màu<input name="colour" type="color" value="#FFFFFF"></label>
+            <label>Khối lượng cuộn (g)<input name="total_g" type="number" min="1" step="1" value="1000"></label>
+            <label>Còn lại (g)<input name="remaining_g" type="number" min="0" step="1"></label>
+            <label>Ngày mở<input name="opened_at" type="date"></label>
+            <label>Lần sấy gần nhất<input name="dried_at" type="date"></label>
+            <label class="wide">Đang ở khay<select name="slot"></select></label>
+            <label class="wide">Ghi chú<textarea name="notes" rows="2" maxlength="500"></textarea></label>
+          </div>
+          <datalist id="spool-materials"></datalist><datalist id="spool-presets"></datalist>
+          <p id="spool-form-error" class="form-error" role="alert" hidden></p>
+          <div class="fil-actions">
+            <button type="button" class="btn" id="spool-cancel">Hủy</button>
+            <button type="submit" class="btn btn-primary">Lưu cuộn</button>
+          </div>
+        </form>
+      </dialog>
+      <dialog id="cal-dialog" class="fil-dialog" aria-labelledby="cal-dialog-title">
+        <form id="cal-form" method="dialog">
+          <h2 id="cal-dialog-title">Hiệu chỉnh nhựa</h2>
+          <p class="muted">Dùng menu Calibration có sẵn trong Bambu Studio, rồi ghi kết quả vào đây. PrintPilot lưu thành preset riêng trong thư viện để tải về Studio và để AI dùng khi phân tích.</p>
+          <ol id="cal-steps" class="cal-steps"></ol>
+          <div class="fil-grid">
+            <label>Nhiệt đầu phun tốt nhất (°C)<input name="nozzle_temperature" type="number" step="1"></label>
+            <label>Hệ số K (pressure advance)<input name="pressure_advance" type="number" step="0.001"></label>
+            <label>Hệ số dòng chảy<input name="filament_flow_ratio" type="number" step="0.005"></label>
+            <label>Rút sợi (mm)<input name="filament_retraction_length" type="number" step="0.1"></label>
+            <label>Lưu lượng tối đa (mm³/s)<input name="filament_max_volumetric_speed" type="number" step="0.5"></label>
+            <label class="wide">Ghi chú<textarea name="notes" rows="2" maxlength="500"></textarea></label>
+          </div>
+          <p id="cal-form-error" class="form-error" role="alert" hidden></p>
+          <div class="fil-actions">
+            <button type="button" class="btn" id="cal-cancel">Đóng</button>
+            <button type="submit" class="btn btn-primary">Lưu kết quả</button>
+          </div>
+        </form>
+      </dialog>
+      <dialog id="fil-dialog" class="fil-dialog" aria-labelledby="fil-dialog-title">
+        <form id="fil-form" method="dialog">
+          <h2 id="fil-dialog-title">Thêm nhựa vào thư viện</h2>
+          <p class="muted">Lấy thông số từ nhãn cuộn nhựa hoặc trang của hãng. Các ô để trống giữ giá trị của preset gốc.</p>
+          <div class="fil-grid">
+            <label>Hãng<input name="vendor" required maxlength="60" placeholder="VD: SUNLU, Jayo, Kingroon"></label>
+            <label>Loại / tên sản phẩm<input name="product" maxlength="60" placeholder="VD: PETG High Speed"></label>
+            <label class="wide">Preset gốc trong Bambu Studio<select name="base" required></select></label>
+            <label class="wide">Tên preset<input name="name" required maxlength="120"></label>
+            <label>Nhiệt đầu phun (°C)<input name="nozzle_temperature" type="number" step="1"></label>
+            <label>Nhiệt lớp đầu (°C)<input name="nozzle_temperature_initial_layer" type="number" step="1"></label>
+            <label>Nhiệt thấp nhất (°C)<input name="nozzle_temperature_range_low" type="number" step="1"></label>
+            <label>Nhiệt cao nhất (°C)<input name="nozzle_temperature_range_high" type="number" step="1"></label>
+            <label>Bàn Textured PEI (°C)<input name="textured_plate_temp" type="number" step="1"></label>
+            <label>Bàn PEI trơn (°C)<input name="hot_plate_temp" type="number" step="1"></label>
+            <label>Bàn Cool Plate (°C)<input name="cool_plate_temp" type="number" step="1"></label>
+            <label>Lưu lượng tối đa (mm³/s)<input name="filament_max_volumetric_speed" type="number" step="0.5"></label>
+            <label>Hệ số dòng chảy<input name="filament_flow_ratio" type="number" step="0.01"></label>
+            <label>Quạt tối thiểu (%)<input name="fan_min_speed" type="number" step="1"></label>
+            <label>Quạt tối đa (%)<input name="fan_max_speed" type="number" step="1"></label>
+            <label>Khối lượng riêng (g/cm³)<input name="filament_density" type="number" step="0.01"></label>
+            <label>Giá (đ/kg)<input name="filament_cost" type="number" step="1000"></label>
+            <label>Màu mặc định<input name="colour" type="color" value="#FFFFFF"></label>
+            <label class="wide">Ghi chú<textarea name="notes" rows="2" maxlength="1000" placeholder="Kinh nghiệm in, link trang hãng…"></textarea></label>
+          </div>
+          <p id="fil-form-error" class="form-error" role="alert" hidden></p>
+          <div class="fil-actions">
+            <button type="button" class="btn" value="cancel" id="fil-cancel">Hủy</button>
+            <button type="submit" class="btn btn-primary" id="fil-save">Lưu vào thư viện</button>
+          </div>
+        </form>
+      </dialog>
+    </section>
+
+    <!-- Printer care: maintenance and room environment -->
+    <section class="view" data-view="care" aria-labelledby="h-care" hidden>
+      <header class="view-head">
+        <div>
+          <h1 id="h-care" class="view-title">Bảo trì</h1>
+          <p class="view-sub">Bảo trì theo giờ in thực tế và điều kiện phòng in; đến hạn sẽ báo qua cảnh báo và Telegram.</p>
+        </div>
+      </header>
+      <p id="care-status" class="upload-status" role="status" aria-live="polite" hidden></p>
+      <div id="care-printers" class="care-grid"></div>
+      <section class="care-env" aria-labelledby="h-env">
+        <h2 id="h-env">Môi trường phòng</h2>
+        <div id="care-env"></div>
+      </section>
     </section>
 
     <!-- Activity log -->
@@ -389,6 +587,14 @@
             </select></label>
         </div>
         <p class="hint">Ảnh gắn với cảnh báo được giữ 14 ngày để đối chiếu.</p>
+        <label class="field"><span>Khi camera thấy bản in hỏng (nhựa rối, bong khỏi bàn, lệch lớp)</span>
+          <select name="failure_action">
+            <option value="notify">Chỉ báo ngay (Telegram)</option>
+            <option value="pause">Tự tạm dừng máy và báo</option>
+            <option value="off">Không làm gì</option>
+          </select></label>
+        <p class="hint">Chỉ hành động khi 2 ảnh liên tiếp cùng thấy lỗi, hoặc 1 ảnh AI rất chắc chắn. Tự tạm dừng chỉ gửi lệnh pause, không hủy bản in.</p>
+        <label class="toggle"><input name="post_print_review" type="checkbox"><span class="toggle-track" aria-hidden="true"></span><span>AI xem ảnh bản in lúc in xong và gợi ý đánh giá</span></label>
         <div class="actions-row">
           <span id="storage-info" class="storage-info num"></span>
           <button type="button" class="btn" data-action="cleanup"><svg class="i"><use href="#i-trash-2"/></svg>Dọn ngay</button>
@@ -420,6 +626,7 @@
   </form>
 </dialog>
 
+<script src="viewer.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

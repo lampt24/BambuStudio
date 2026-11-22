@@ -63,9 +63,12 @@ private:
 class PrintPilotResultDialog : public wxDialog {
 public:
     // changes: filtered to allowlist before display
+    // manual_changes: valid suggestions this dialog cannot apply (another filament is open in
+    // the Filament tab); shown so the user can set them by hand.
     PrintPilotResultDialog(wxWindow* parent,
                            const AnalysisResult& result,
-                           const std::vector<SettingChange>& allowed_changes);
+                           const std::vector<SettingChange>& allowed_changes,
+                           const std::vector<SettingChange>& manual_changes = {});
     ~PrintPilotResultDialog() override = default;
 
     // After ShowModal: true if user clicked Apply
@@ -103,6 +106,7 @@ public:
 DialogResult run_printpilot_flow(Plater* plater,
                                  const std::string& temp_3mf_path,
                                  const std::string& trigger,
-                                 const std::string& objective = "quality");
+                                 const std::string& objective = "quality",
+                                 int plate_index = 0);  // 1-based, 0 = whole project
 
 }}} // namespace Slic3r::GUI::AI

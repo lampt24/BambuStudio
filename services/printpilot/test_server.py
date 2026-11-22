@@ -62,6 +62,7 @@ from server import (
     HeartbeatMonitor,
     ai_vision, AIError, VisionWorker,
     prune_old_data,
+    build_preview_mesh, best_thumbnail, display_filename, settings_from_config, _paint_state,
 )
 
 
@@ -990,6 +991,57 @@ class TestHeartbeat(ServerTestCase):
         state = json.loads(resp.read())
         device_ids = [d["device_id"] for d in state["devices"]]
         self.assertIn("mydevice", device_ids)
+
+
+class TestPrinterRename(ServerTestCase):
+    def _heartbeat(self, name="Bridge X1C"):
+        code, _ = _jreq(self._port, "POST", "/api/heartbeat", {
+            "device_id": "d1", "printer_id": "p1", "status": "idle", "printer_name": name,
+        }, token=DEVICE_TOKEN)
+        self.assertEqual(code, 200)
+
+    def _printer(self):
+        state = json.loads(_req(self._port, "GET", "/api/state", token=MANAGER_TOKEN).read())
+        return next(p for p in state["printers"] if p["printer_id"] == "p1")
+
+    def test_rename_survives_heartbeat_and_reset_restores_reported(self):
+        self._heartbeat()
+        code, data = _jreq(self._port, "POST", "/api/printers/p1/name", {"name": "  Máy   phòng khách "})
+        self.assertEqual(code, 200)
+        self.assertEqual(data["name"], "Máy phòng khách")
+        self._heartbeat("Bridge X1C")  # bridge keeps reporting its own name
+        printer = self._printer()
+        self.assertEqual(printer["name"], "Máy phòng khách")
+        self.assertEqual(printer["custom_name"], "Máy phòng khách")
+        self.assertEqual(printer["reported_name"], "Bridge X1C")
+        code, data = _jreq(self._port, "POST", "/api/printers/p1/name", {"name": ""})
+        self.assertEqual(code, 200)
+        self.assertEqual(data["name"], "Bridge X1C")
+        printer = self._printer()
+        self.assertEqual(printer["name"], "Bridge X1C")
+        self.assertIsNone(printer["custom_name"])
+
+    def test_rename_logs_event(self):
+        self._heartbeat()
+        _jreq(self._port, "POST", "/api/printers/p1/name", {"name": "Bếp"})
+        events = json.loads(_req(self._port, "GET", "/api/events", token=MANAGER_TOKEN).read())
+        self.assertTrue(any("Bếp" in e["message"] for e in events["events"]))
+
+    def test_rename_validation(self):
+        self._heartbeat()
+        for body, code in (({"name": 5}, 400), ({}, 400), ({"name": "x" * 81}, 400),
+                           ({"name": "a\u0000b"}, 400)):
+            got, _ = _jreq(self._port, "POST", "/api/printers/p1/name", body)
+            self.assertEqual(got, code, body)
+        got, _ = _jreq(self._port, "POST", "/api/printers/missing/name", {"name": "A"})
+        self.assertEqual(got, 404)
+
+    def test_rename_requires_manager(self):
+        self._heartbeat()
+        got, _ = _jreq(self._port, "POST", "/api/printers/p1/name", {"name": "A"}, token=DEVICE_TOKEN)
+        self.assertEqual(got, 401)
+        got, _ = _jreq(self._port, "POST", "/api/printers/p1/name", {"name": "A"}, token=None)
+        self.assertEqual(got, 401)
 
 
 # ---------------------------------------------------------------------------
@@ -2052,5 +2104,211 @@ class TestLiveCamera(ServerTestCase):
         self.assertEqual(_jreq(self._port, "POST", "/api/printers/ghost/live", {})[0], 404)
 
 
+
+# ---------------------------------------------------------------------------
+# Test: project preview (thumbnail, 3D mesh, download) and dashboard upload
+# ---------------------------------------------------------------------------
+
+def _make_bambu_3mf(title: str | None = "Móc khoá") -> bytes:
+    """Bambu-style split 3MF: build item -> components in 3D/Objects, painted triangles."""
+    core = 'xmlns="http://schemas.microsoft.com/3dmanufacturing/core/2015/02" ' \
+           'xmlns:p="http://schemas.microsoft.com/3dmanufacturing/production/2015/06"'
+    meta = f'<metadata name="Title">{title}</metadata>' if title else ''
+    main = (f'<model unit="millimeter" {core}>{meta}<resources>'
+            '<object id="5" type="model"><components>'
+            '<p:component p:path="/3D/Objects/object_1.model" objectid="1" transform="1 0 0 0 1 0 0 0 1 0 0 2"/>'
+            '<p:component p:path="/3D/Objects/object_1.model" objectid="2"/>'
+            '</components></object></resources>'
+            '<build><item objectid="5" transform="1 0 0 0 1 0 0 0 1 100 50 0"/></build></model>')
+    part = (f'<model unit="millimeter" {core}><resources>'
+            '<object id="1" type="model"><mesh><vertices>'
+            '<vertex x="0" y="0" z="0"/><vertex x="10" y="0" z="0"/><vertex x="0" y="10" z="0"/>'
+            '</vertices><triangles><triangle v1="0" v2="1" v3="2" paint_color="8"/>'
+            '<triangle v1="0" v2="2" v3="1"/></triangles></mesh></object>'
+            '<object id="2" type="model"><mesh><vertices>'
+            '<vertex x="0" y="0" z="0"/><vertex x="1" y="0" z="0"/><vertex x="0" y="1" z="0"/>'
+            '</vertices><triangles><triangle v1="0" v2="1" v3="2" paint_color="0C"/></triangles></mesh></object>'
+            '</resources></model>')
+    settings = {"filament_colour": ["#000000", "#FB3198", "#00F1FC"], "layer_height": "0.2",
+                "wall_loops": "2", "sparse_infill_density": "15%", "nozzle_diameter": ["0.4"],
+                "brim_width": "5"}
+    model_settings = ('<config><object id="5"><metadata key="name" value="keychain part"/>'
+                      '<metadata key="extruder" value="1"/>'
+                      '<part id="1" subtype="normal_part"><metadata key="extruder" value="1"/></part>'
+                      '<part id="2" subtype="normal_part"><metadata key="extruder" value="2"/></part>'
+                      '</object></config>')
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as zf:
+        zf.writestr("3D/3dmodel.model", main)
+        zf.writestr("3D/Objects/object_1.model", part)
+        zf.writestr("Metadata/project_settings.config", json.dumps(settings))
+        zf.writestr("Metadata/model_settings.config", model_settings)
+        zf.writestr("Metadata/plate_1_small.png", b"\x89PNG\r\n\x1a\nsmall")
+        zf.writestr("Metadata/plate_1.png", b"\x89PNG\r\n\x1a\nplate")
+    return buf.getvalue()
+
+
+def _decode_preview(mesh: bytes):
+    import struct
+    assert mesh[:4] == b"PPM1"
+    nv, nt, nc = struct.unpack("<III", mesh[4:16])
+    off = 16 + -(-nc * 3 // 4) * 4
+    pal = list(mesh[16:16 + nc * 3])
+    pos = struct.unpack(f"<{nv * 3}f", mesh[off:off + nv * 12])
+    idx = struct.unpack(f"<{nt * 3}I", mesh[off + nv * 12:off + nv * 12 + nt * 12])
+    col = list(mesh[off + nv * 12 + nt * 12:])
+    return nv, nt, pal, pos, idx, col
+
+
+class TestPreviewMesh(unittest.TestCase):
+    def test_paint_state_decoding(self):
+        self.assertEqual(_paint_state("4"), 1)
+        self.assertEqual(_paint_state("8"), 2)
+        self.assertEqual(_paint_state("0C"), 3)
+        self.assertEqual(_paint_state("1C"), 4)
+        # Split into 4 children (nibble 3): three painted state 2, one unpainted
+        self.assertEqual(_paint_state("08883"), 2)
+        self.assertEqual(_paint_state("zz"), 0)
+
+    def test_components_transforms_and_colors(self):
+        nv, nt, pal, pos, idx, col = _decode_preview(build_preview_mesh(_make_bambu_3mf()))
+        self.assertEqual((nv, nt), (6, 3))
+        self.assertEqual(pal[:9], [0, 0, 0, 0xFB, 0x31, 0x98, 0x00, 0xF1, 0xFC])
+        # Component transform (z+2) composed with build item (x+100, y+50)
+        self.assertEqual(pos[0:3], (100.0, 50.0, 2.0))
+        self.assertEqual(pos[3:6], (110.0, 50.0, 2.0))
+        # painted extruder 2, unpainted part extruder 1, part 2 painted extruder 3
+        self.assertEqual(col, [1, 0, 2])
+        self.assertTrue(all(i < nv for i in idx))
+
+    def test_rejects_missing_part_and_bad_index(self):
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, "w") as zf:
+            zf.writestr("3D/3dmodel.model", '<model><resources><object id="1"><mesh><vertices>'
+                        '<vertex x="0" y="0" z="0"/></vertices><triangles><triangle v1="0" v2="1" v3="2"/>'
+                        '</triangles></mesh></object></resources><build><item objectid="1"/></build></model>')
+        with self.assertRaises(ExtractionError):
+            build_preview_mesh(buf.getvalue())
+        with self.assertRaises(ExtractionError):
+            build_preview_mesh(b"not a zip")
+
+    def test_thumbnail_prefers_plate_render(self):
+        data, mime = best_thumbnail(_make_bambu_3mf())
+        self.assertEqual(mime, "image/png")
+        self.assertTrue(data.endswith(b"plate"))
+        self.assertIsNone(best_thumbnail(b"nope"))
+
+    def test_title_and_settings_from_project(self):
+        extracted = extract_3mf(_make_bambu_3mf())
+        self.assertEqual(extracted["title"], "Móc khoá")
+        self.assertEqual(display_filename("07dfb774-34af-4d2e-b78a-1a94c2c9d893.3mf", extracted["title"]), "Móc khoá.3mf")
+        self.assertEqual(display_filename("my part.3mf", "Other"), "my part.3mf")
+        self.assertEqual(extract_3mf(_make_bambu_3mf(title=None))["title"], "keychain part")
+        settings = settings_from_config(extracted["config"])
+        self.assertEqual(settings["layer_height"], "0.2")
+        self.assertEqual(settings["sparse_infill_density"], "15%")
+        self.assertEqual(settings["nozzle_diameter"], "0.4")
+        self.assertEqual(validate_settings(settings)["wall_loops"], 2)
+
+
+class _RecordingAI(FakeAIHandler):
+    requests: list = []
+
+    def do_POST(self):
+        length = int(self.headers.get("Content-Length", 0))
+        body = self.rfile.read(length)
+        type(self).requests.append(json.loads(body))
+        content = json.dumps({"summary": "Ổn", "warnings": [],
+                              "changes": [{"key": "wall_loops", "old": 2, "value": 3, "reason": "Chắc hơn"}]})
+        resp = json.dumps({"model": "gpt-test", "choices": [{"message": {"content": content}}]}).encode()
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(resp)))
+        self.end_headers()
+        self.wfile.write(resp)
+
+
+class TestUploadAndPreviewEndpoints(ServerWithAITestCase):
+    _fake_ai_handler_class = _RecordingAI
+
+    def _upload(self, filename="07dfb774-34af-4d2e-b78a-1a94c2c9d893.3mf"):
+        return _jreq(self._port, "POST", "/api/analyze", {
+            "filename": filename, "project_base64": base64.b64encode(_make_bambu_3mf()).decode(),
+            "objective": "strength", "trigger": "upload", "settings": {}})
+
+    def test_upload_uses_project_settings_and_vietnamese_prompt(self):
+        _RecordingAI.requests = []
+        status, data = self._upload()
+        self.assertEqual(status, 200, data)
+        self.assertNotEqual(data["status"], "error", data)
+        self.assertEqual(data["changes"][0]["value"], 3)
+        sent = _RecordingAI.requests[-1]["messages"]
+        self.assertIn("Vietnamese", sent[0]["content"])
+        self.assertIn('"wall_loops":2', sent[1]["content"])
+        resp = _req(self._port, "GET", "/api/state")
+        state = json.loads(resp.read())
+        self.assertEqual(state["analyses"][0]["filename"], "Móc khoá.3mf")
+        self.assertEqual(state["analyses"][0]["trigger"], "upload")
+
+    def test_assets_require_manager_and_serve_file_thumbnail_mesh(self):
+        _, data = self._upload()
+        base = f"/api/analyses/{data['id']}"
+        for kind in ("file", "thumbnail", "mesh"):
+            self.assertEqual(_req(self._port, "GET", f"{base}/{kind}", token=None).status, 401)
+            self.assertEqual(_req(self._port, "GET", f"{base}/{kind}", token=DEVICE_TOKEN).status, 401)
+        resp = _req(self._port, "GET", f"{base}/file")
+        self.assertEqual(resp.status, 200)
+        self.assertEqual(resp.read(), _make_bambu_3mf())
+        self.assertIn("filename*=UTF-8''M%C3%B3c%20kho%C3%A1.3mf", resp.getheader("Content-Disposition"))
+        resp = _req(self._port, "GET", f"{base}/thumbnail")
+        self.assertEqual((resp.status, resp.getheader("Content-Type")), (200, "image/png"))
+        self.assertTrue(resp.read().endswith(b"plate"))
+        resp = _req(self._port, "GET", f"{base}/mesh")
+        self.assertEqual(resp.status, 200)
+        self.assertEqual(_decode_preview(resp.read())[1], 3)
+        # Second request comes from the gzip cache, served compressed when accepted
+        conn = http.client.HTTPConnection("127.0.0.1", self._port, timeout=10)
+        conn.request("GET", f"{base}/mesh", headers={"Authorization": f"Bearer {MANAGER_TOKEN}", "Accept-Encoding": "gzip"})
+        resp = conn.getresponse()
+        self.assertEqual(resp.getheader("Content-Encoding"), "gzip")
+        import gzip as _gzip
+        self.assertEqual(_decode_preview(_gzip.decompress(resp.read()))[1], 3)
+
+    def test_missing_analysis_and_expired_file(self):
+        self.assertEqual(_req(self._port, "GET", f"/api/analyses/{uuid.uuid4()}/mesh").status, 404)
+        _, data = self._upload()
+        db = sqlite3.connect(os.path.join(self._tmpdir, "printpilot.db"))
+        path = db.execute("SELECT file_path FROM analyses WHERE id=?", (data["id"],)).fetchone()[0]
+        _req(self._port, "GET", f"/api/analyses/{data['id']}/mesh").read()
+        self.assertTrue(os.path.exists(path + ".mesh.gz"))
+        db.execute("UPDATE analyses SET created_at='2000-01-01T00:00:00Z'")
+        db.commit()
+        conn = open_db(os.path.join(self._tmpdir, "printpilot.db"))
+        prune_old_data(conn, None, self._tmpdir)
+        self.assertFalse(os.path.exists(path + ".mesh.gz"))
+        self.assertFalse(os.path.exists(path))
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
+
+
+class TestAmsEditFirmwareBlock(ServerTestCase):
+    def test_firmware_rejection_disables_material_edits(self):
+        hb = {"device_id": "redmi", "printer_id": "a1", "status": "idle", "printer_name": "A1"}
+        self.assertEqual(_jreq(self._port, "POST", "/api/heartbeat", hb, token=DEVICE_TOKEN)[0], 200)
+        state = json.loads(_req(self._port, "GET", "/api/state").read())
+        self.assertTrue(state["printers"][0]["ams_edit_supported"])
+        conn = sqlite3.connect(os.path.join(self._tmpdir, "printpilot.db"))
+        conn.execute("INSERT INTO printer_commands (id, created_at, updated_at, printer_id, device_id, command, params, status, actor, result) "
+                     "VALUES ('c1','2026-11-21T14:00:00Z','2026-11-21T14:00:03Z','a1','redmi','ams_filament_setting','{}','failed','x',"
+                     "'máy in từ chối thay đổi filament: mã 0502-4007 (84033543)')")
+        conn.commit(); conn.close()
+        state = json.loads(_req(self._port, "GET", "/api/state").read())
+        self.assertFalse(state["printers"][0]["ams_edit_supported"])
+        code, data = _jreq(self._port, "POST", "/api/printers/a1/commands",
+                           {"command": "ams_filament_setting", "params": {"ams_id": 0, "slot_id": 0, "profile_id": "x", "color": "#ffffff"}})
+        self.assertEqual(code, 409)
+        self.assertIn("0502-4007", data["error"])
+        # Other commands are unaffected.
+        code, _ = _jreq(self._port, "POST", "/api/printers/a1/commands", {"command": "light", "params": {"mode": "on"}})
+        self.assertEqual(code, 202)

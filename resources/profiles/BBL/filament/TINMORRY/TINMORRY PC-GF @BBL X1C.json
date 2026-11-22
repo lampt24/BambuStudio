@@ -1,0 +1,35 @@
+{
+    "type": "filament",
+    "name": "TINMORRY PC-GF @BBL X1C",
+    "inherits": "Generic PC",
+    "from": "system",
+    "setting_id": "TMS95EE3",
+    "instantiation": "true",
+    "filament_vendor": [
+        "TINMORRY"
+    ],
+    "fan_max_speed": [
+        "40"
+    ],
+    "filament_extruder_variant": [
+        "Direct Drive Standard"
+    ],
+    "filament_flow_ratio": [
+        "0.97"
+    ],
+    "filament_max_volumetric_speed": [
+        "10"
+    ],
+    "nozzle_temperature_initial_layer": [
+        "280"
+    ],
+    "slow_down_layer_time": [
+        "12"
+    ],
+    "textured_plate_temp": [
+        "100"
+    ],
+    "textured_plate_temp_initial_layer": [
+        "100"
+    ]
+}

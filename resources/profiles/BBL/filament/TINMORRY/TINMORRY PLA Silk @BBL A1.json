@@ -1,0 +1,20 @@
+{
+    "type": "filament",
+    "name": "TINMORRY PLA Silk @BBL A1",
+    "inherits": "Generic PLA Silk @BBL A1",
+    "from": "system",
+    "setting_id": "TMS7C370",
+    "instantiation": "true",
+    "filament_vendor": [
+        "TINMORRY"
+    ],
+    "slow_down_layer_time": [
+        "12"
+    ],
+    "textured_plate_temp": [
+        "60"
+    ],
+    "textured_plate_temp_initial_layer": [
+        "60"
+    ]
+}

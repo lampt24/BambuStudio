@@ -1,0 +1,35 @@
+{
+    "type": "filament",
+    "name": "TINMORRY PETG-CF @BBL A1M",
+    "inherits": "Generic PETG-CF @BBL A1M",
+    "from": "system",
+    "setting_id": "TMS68CAE",
+    "instantiation": "true",
+    "filament_vendor": [
+        "TINMORRY"
+    ],
+    "fan_max_speed": [
+        "50"
+    ],
+    "fan_min_speed": [
+        "20"
+    ],
+    "filament_max_volumetric_speed": [
+        "12"
+    ],
+    "nozzle_temperature": [
+        "260"
+    ],
+    "nozzle_temperature_initial_layer": [
+        "260"
+    ],
+    "reduce_fan_stop_start_freq": [
+        "0"
+    ],
+    "textured_plate_temp": [
+        "75"
+    ],
+    "textured_plate_temp_initial_layer": [
+        "75"
+    ]
+}

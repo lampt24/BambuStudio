@@ -1,0 +1,23 @@
+{
+    "type": "filament",
+    "name": "TINMORRY PLA @BBL X1C",
+    "inherits": "Generic PLA",
+    "from": "system",
+    "setting_id": "TMS5B417",
+    "instantiation": "true",
+    "filament_vendor": [
+        "TINMORRY"
+    ],
+    "filament_flow_ratio": [
+        "0.97"
+    ],
+    "filament_max_volumetric_speed": [
+        "18"
+    ],
+    "textured_plate_temp": [
+        "65"
+    ],
+    "textured_plate_temp_initial_layer": [
+        "65"
+    ]
+}

@@ -1,0 +1,39 @@
+{
+    "type": "filament",
+    "name": "TINMORRY TPU-GF @BBL X1C",
+    "inherits": "Bambu TPU 95A @BBL X1C",
+    "from": "system",
+    "setting_id": "TMS4AAB5",
+    "instantiation": "true",
+    "filament_vendor": [
+        "TINMORRY"
+    ],
+    "filament_extruder_variant": [
+        "Direct Drive Standard",
+        "Direct Drive High Flow"
+    ],
+    "filament_max_volumetric_speed": [
+        "12",
+        "nil"
+    ],
+    "filament_retraction_length": [
+        "1.4",
+        "nil"
+    ],
+    "nozzle_temperature": [
+        "225",
+        "nil"
+    ],
+    "nozzle_temperature_range_low": [
+        "210"
+    ],
+    "slow_down_layer_time": [
+        "10"
+    ],
+    "textured_plate_temp": [
+        "45"
+    ],
+    "textured_plate_temp_initial_layer": [
+        "45"
+    ]
+}

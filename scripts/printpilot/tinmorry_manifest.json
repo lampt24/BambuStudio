@@ -1,0 +1,801 @@
+{
+  "imported": [
+    {
+      "name": "TINMORRY ABS @BBL H2C",
+      "base": "Generic ABS @BBL H2C 0.4 nozzle",
+      "setting_id": "TMSBE1AB",
+      "source": "ABS(H2C-Bambu-TINMORRY).json"
+    },
+    {
+      "name": "TINMORRY ABS Pro @BBL H2D",
+      "base": "Generic ABS @BBL H2D",
+      "setting_id": "TMS3B9B0",
+      "source": "Tinmorry-Bambu_BambuStudio/H2D/TINMORRY ABS pro.bbsflmt:TINMORRY/TINMORRY ABS pro @Bambu Lab H2D 0.4 nozzle.json"
+    },
+    {
+      "name": "TINMORRY ABS Pro @BBL P2S",
+      "base": "Generic ABS @BBL P2S",
+      "setting_id": "TMS070B0",
+      "source": "Tinmorry-Bambu_BambuStudio/P2S/TINMORRY ABS Pro.bbsflmt:TINMORRY/TINMORRY ABS Pro @Bambu Lab P2S 0.4 nozzle.json"
+    },
+    {
+      "name": "TINMORRY ABS Pro @BBL X1C",
+      "base": "Generic ABS",
+      "setting_id": "TMS0FCD5",
+      "source": "ABS-pro(X1C P1S-Bambu-TINMORRY).json"
+    },
+    {
+      "name": "TINMORRY ABS Pro @BBL X2D",
+      "base": "Generic ABS @BBL X2D",
+      "setting_id": "TMS46813",
+      "source": "X2D/0.4mm/TINMORRY ABS Pro.bbsflmt:TINMORRY/TINMORRY ABS Pro @Bambu Lab X2D 0.4 nozzle.json"
+    },
+    {
+      "name": "TINMORRY ASA @BBL H2D",
+      "base": "Generic ASA @BBL H2D",
+      "setting_id": "TMS85F7F",
+      "source": "ASA(H2D-Bambu-TINMORRY).json"
+    },
+    {
+      "name": "TINMORRY ASA @BBL H2S",
+      "base": "Generic ASA @BBL H2S 0.4 nozzle",
+      "setting_id": "TMSAA48C",
+      "source": "ASA(H2S-Bambu-TINMORRY).json"
+    },
+    {
+      "name": "TINMORRY ASA @BBL P2S",
+      "base": "Generic ASA @BBL P2S",
+      "setting_id": "TMS8C9C2",
+      "source": "ASA(P2S-Bambu-TINMORRY).json"
+    },
+    {
+      "name": "TINMORRY ASA @BBL X1C",
+      "base": "Generic ASA",
+      "setting_id": "TMS1AE0B",
+      "source": "ASA(P1S,X1C-Bambu-TINMORRY).json"
+    },
+    {
+      "name": "TINMORRY ASA Basic @BBL X2D",
+      "base": "Generic ASA @BBL X2D",
+      "setting_id": "TMS20837",
+      "source": "X2D/0.4mm/TINMORRY ASA basic.bbsflmt:TINMORRY/TINMORRY ASA basic @Bambu Lab X2D 0.4 nozzle.json"
+    },
+    {
+      "name": "TINMORRY ASA Regular @BBL H2C",
+      "base": "Generic ASA @BBL H2C",
+      "setting_id": "TMSC883E",
+      "source": "Tinmorry-Bambu_BambuStudio/H2C/TINMORRY ASA Regular.bbsflmt:TINMORRY/TINMORRY ASA Regular @Bambu Lab H2C 0.4 nozzle.json"
+    },
+    {
+      "name": "TINMORRY ASA-CF @BBL H2D",
+      "base": "Generic ASA @BBL H2D",
+      "setting_id": "TMS4F0AA",
+      "source": "Tinmorry-Bambu_BambuStudio/H2D/TINMORRY ASA CF.bbsflmt:TINMORRY/TINMORRY ASA CF @Bambu Lab H2D 0.4 nozzle.json"
+    },
+    {
+      "name": "TINMORRY ASA-CF @BBL H2S",
+      "base": "Generic ASA @BBL H2S 0.4 nozzle",
+      "setting_id": "TMS5AC25",
+      "source": "Tinmorry-Bambu_BambuStudio/H2S/TINMORRY ASA CF.bbsflmt:TINMORRY/TINMORRY ASA CF @Bambu Lab H2S 0.4 nozzle.json"
+    },
+    {
+      "name": "TINMORRY ASA-CF @BBL X2D",
+      "base": "Generic ASA @BBL X2D",
+      "setting_id": "TMSF3B47",
+      "source": "X2D/0.4mm/TINMORRY ASA CF.bbsflmt:TINMORRY/TINMORRY ASA CF @Bambu Lab X2D 0.4 nozzle.json"
+    },
+    {
+      "name": "TINMORRY PA-CF @BBL X1C",
+      "base": "Generic PA-CF",
+      "setting_id": "TMSB48FA",
+      "source": "PA-CF(P1S.X1C-Bambu-TINMORRY).json"
+    },
+    {
+      "name": "TINMORRY PA-GF @BBL H2C",
+      "base": "Generic PA @BBL H2C",
+      "setting_id": "TMS5616C",
+      "source": "Tinmorry-Bambu_BambuStudio/H2C/TINMORRY PA GF.bbsflmt:TINMORRY/TINMORRY PA GF @Bambu Lab H2C 0.4 nozzle.json"
+    },
+    {
+      "name": "TINMORRY PAHT-CF @BBL X1C",
+      "base": "Generic PA-CF",
+      "setting_id": "TMS134BB",
+      "source": "PAHT-CF(P1S.X1C-Bambu-TINMORRY).json"
+    },
+    {
+      "name": "TINMORRY PC-GF @BBL A1",
+      "base": "Generic PC @BBL A1",
+      "setting_id": "TMSA679B",
+      "source": "PC-GF(A1-Bambu-TINMORRY).json"
+    },
+    {
+      "name": "TINMORRY PC-GF @BBL H2C",
+      "base": "Generic PC @BBL H2C",
+      "setting_id": "TMSA135D",
+      "source": "Tinmorry-Bambu_BambuStudio/H2C/TINMORRY PC GF.bbsflmt:TINMORRY/TINMORRY PC GF @Bambu Lab H2C 0.4 nozzle.json"
+    },
+    {
+      "name": "TINMORRY PC-GF @BBL H2D",
+      "base": "Generic PC @BBL H2D",
+      "setting_id": "TMSC6C07",
+      "source": "Tinmorry-Bambu_BambuStudio/H2D/TINMORRY PC GF.bbsflmt:TINMORRY/TINMORRY PC GF @Bambu Lab H2D 0.4 nozzle.json"
+    },
+    {
+      "name": "TINMORRY PC-GF @BBL P1P",
+      "base": "Generic PC @BBL P1P",
+      "setting_id": "TMS41731",
+      "source": "PC-GF(P1P-Bambu-TINMORRY).json"
+    },
+    {
+      "name": "TINMORRY PC-GF @BBL P1S",
+      "base": "Generic PC @BBL P1S",
+      "setting_id": "TMSDDB93",
+      "source": "PC-GF(P1S-Bambu-TINMORRY).json"
+    },
+    {
+      "name": "TINMORRY PC-GF @BBL X1C",
+      "base": "Generic PC",
+      "setting_id": "TMS95EE3",
+      "source": "PC-GF(X1C-Bambu-TINMORRY).json"
+    },
+    {
+      "name": "TINMORRY PC-GF @BBL X2D",
+      "base": "Generic PC @BBL X2D",
+      "setting_id": "TMS76C09",
+      "source": "X2D/0.4mm/TINMORRY PC GF.bbsflmt:TINMORRY/TINMORRY PC GF @Bambu Lab X2D 0.4 nozzle.json"
+    },
+    {
+      "name": "TINMORRY PET-CF @BBL X1C",
+      "base": "Generic ABS",
+      "setting_id": "TMSFCA6C",
+      "source": "PET-CF (X1 X1C P1S P1P).json"
+    },
+    {
+      "name": "TINMORRY PET-CF/GF @BBL H2S",
+      "base": "Bambu PET-CF @BBL H2S",
+      "setting_id": "TMS083EA",
+      "source": "PET CF   GF(H2S-Bambu-TINMORRY).json"
+    },
+    {
+      "name": "TINMORRY PET-GF @BBL A1",
+      "base": "Bambu PET-CF @BBL A1",
+      "setting_id": "TMSC6A6B",
+      "source": "PET-GF(A1-Bambu-TINMORRY).json"
+    },
+    {
+      "name": "TINMORRY PET-GF @BBL P1P",
+      "base": "Bambu PET-CF @BBL P1P",
+      "setting_id": "TMSEA8EA",
+      "source": "PET-GF(P1P-Bambu-TINMORRY).json"
+    },
+    {
+      "name": "TINMORRY PET-GF @BBL X1C",
+      "base": "Bambu PET-CF @BBL X1C",
+      "setting_id": "TMS15F49",
+      "source": "PET-GF(X1C,P1S-Bambu-TINMORRY).json"
+    },
+    {
+      "name": "TINMORRY PETG ECO @BBL A1",
+      "base": "Generic PETG @BBL A1",
+      "setting_id": "TMS74974",
+      "source": "PETG-ECO (A1-Bambu-TINMORRY).json"
+    },
+    {
+      "name": "TINMORRY PETG ECO @BBL A1M",
+      "base": "Generic PETG @BBL A1M",
+      "setting_id": "TMSFDE3E",
+      "source": "PETG-ECO(A1mini-bambu-TINMORRY).json"
+    },
+    {
+      "name": "TINMORRY PETG ECO @BBL A2L",
+      "base": "Generic PETG @BBL A2L",
+      "setting_id": "TMS97B42",
+      "source": "Tinmorry-Bambu_BambuStudio/A2L/TINMORRY PETG ECO.bbsflmt:TINMORRY/TINMORRY PETG ECO @Bambu Lab A2L 0.4 nozzle.json"
+    },
+    {
+      "name": "TINMORRY PETG ECO @BBL H2C",
+      "base": "Generic PETG @BBL H2C 0.4 nozzle",
+      "setting_id": "TMS9601E",
+      "source": "PETG-ECO(H2C-Bambu-TINMORRY).json"
+    },
+    {
+      "name": "TINMORRY PETG ECO @BBL H2D",
+      "base": "Generic PETG @BBL H2D",
+      "setting_id": "TMS6E1F4",
+      "source": "PETG-ECO(H2D-Bambu-TINMORRY).json"
+    },
+    {
+      "name": "TINMORRY PETG ECO @BBL H2S",
+      "base": "Generic PETG @BBL H2S",
+      "setting_id": "TMS0129A",
+      "source": "PETG-ECO(H2S-Bambu-TINMORRY).json"
+    },
+    {
+      "name": "TINMORRY PETG ECO @BBL P2S",
+      "base": "Generic PETG @BBL P2S",
+      "setting_id": "TMS631F2",
+      "source": "PETG-ECO(P2S-Bambu-TINMORRY).json"
+    },
+    {
+      "name": "TINMORRY PETG ECO @BBL X1C",
+      "base": "Generic PETG",
+      "setting_id": "TMSCA91F",
+      "source": "PETG -ECO(P1P P1S X1C-Bambu-TINMORRY).json"
+    },
+    {
+      "name": "TINMORRY PETG ECO @BBL X2D",
+      "base": "Generic PETG @BBL X2D",
+      "setting_id": "TMSCFAC4",
+      "source": "X2D/0.4mm/TINMORRY PETG ECO.bbsflmt:TINMORRY/TINMORRY PETG ECO @Bambu Lab X2D 0.4 nozzle.json"
+    },
+    {
+      "name": "TINMORRY PETG Galaxy @BBL P2S",
+      "base": "Generic PETG @BBL P2S",
+      "setting_id": "TMS46A86",
+      "source": "Galaxy PETG(P2S-Bambu-TINMORRY).json"
+    },
+    {
+      "name": "TINMORRY PETG Galaxy @BBL X2D",
+      "base": "Generic PETG @BBL X2D",
+      "setting_id": "TMS6452A",
+      "source": "X2D/0.4mm/TINMORRY PETG Galaxy.bbsflmt:TINMORRY/TINMORRY PETG Galaxy @Bambu Lab X2D 0.4 nozzle.json"
+    },
+    {
+      "name": "TINMORRY PETG HS @BBL A1",
+      "base": "Generic PETG @BBL A1",
+      "setting_id": "TMS14587",
+      "source": "PETG-HS(A1-Bambu-TINMORRY).json"
+    },
+    {
+      "name": "TINMORRY PETG HS @BBL X1C",
+      "base": "Generic PETG",
+      "setting_id": "TMS7442A",
+      "source": "PETG-HS(X1C-Bambu-TINMORRY).json"
+    },
+    {
+      "name": "TINMORRY PETG Marble @BBL A1",
+      "base": "Generic PETG @BBL A1",
+      "setting_id": "TMSD0EE8",
+      "source": "PETG-Marble(A1-Bambu-TINMORRY).json"
+    },
+    {
+      "name": "TINMORRY PETG Marble @BBL A1M",
+      "base": "Generic PETG @BBL A1M",
+      "setting_id": "TMSFA5EC",
+      "source": "PETG-Marble(A1mini-Bambu-TINMORRY).json"
+    },
+    {
+      "name": "TINMORRY PETG Marble @BBL H2C",
+      "base": "Generic PETG @BBL H2C 0.4 nozzle",
+      "setting_id": "TMSE98EF",
+      "source": "PETG-Marble(H2C-Bambu-TINMORRY).json"
+    },
+    {
+      "name": "TINMORRY PETG Marble @BBL H2D",
+      "base": "Generic PETG @BBL H2D",
+      "setting_id": "TMS57878",
+      "source": "PETG-Marble(H2D-Bambu-TINMORRY).json"
+    },
+    {
+      "name": "TINMORRY PETG Marble @BBL H2S",
+      "base": "Generic PETG @BBL H2S",
+      "setting_id": "TMS053F9",
+      "source": "PETG-Marble(H2S-Bambu-TINMORRY).json"
+    },
+    {
+      "name": "TINMORRY PETG Marble @BBL P2S",
+      "base": "Generic PETG @BBL P2S",
+      "setting_id": "TMS48CF8",
+      "source": "X2D/0.4mm/TINMORRY PETG Marble.bbsflmt:TINMORRY/TINMORRY PETG Marble @Bambu Lab P2S 0.4 nozzle.json"
+    },
+    {
+      "name": "TINMORRY PETG Marble @BBL X1C",
+      "base": "Generic PETG",
+      "setting_id": "TMS9B8B8",
+      "source": "PETG -Marble(X1C P1S P1P-Bambu-TINMORRY).json"
+    },
+    {
+      "name": "TINMORRY PETG Marble @BBL X2D",
+      "base": "Generic PETG @BBL X2D",
+      "setting_id": "TMS23E05",
+      "source": "X2D/0.4mm/TINMORRY PETG Marble.bbsflmt:TINMORRY/TINMORRY PETG Marble @Bambu Lab X2D 0.4 nozzle.json"
+    },
+    {
+      "name": "TINMORRY PETG Matte @BBL A1",
+      "base": "Generic PETG @BBL A1",
+      "setting_id": "TMS56188",
+      "source": "Tinmorry-Bambu_BambuStudio/A1/TINMORRY PETG Matte.bbsflmt:TINMORRY/TINMORRY PETG Matte @Bambu Lab A1 0.4 nozzle.json"
+    },
+    {
+      "name": "TINMORRY PETG Matte @BBL A1M",
+      "base": "Generic PETG @BBL A1M",
+      "setting_id": "TMSE7D06",
+      "source": "Tinmorry-Bambu_BambuStudio/A1mini/TINMORRY PETG Matte.bbsflmt:TINMORRY/TINMORRY PETG Matte @Bambu Lab A1 mini 0.4 nozzle.json"
+    },
+    {
+      "name": "TINMORRY PETG Matte @BBL P2S",
+      "base": "Generic PETG @BBL P2S",
+      "setting_id": "TMSAE769",
+      "source": "Tinmorry-Bambu_BambuStudio/P2S/TINMORRY PETG Matte.bbsflmt:TINMORRY/TINMORRY PETG Matte @Bambu Lab P2S 0.4 nozzle.json"
+    },
+    {
+      "name": "TINMORRY PETG Metallic @BBL A1",
+      "base": "Generic PETG @BBL A1",
+      "setting_id": "TMS84876",
+      "source": "Metallic PETG (A1).json"
+    },
+    {
+      "name": "TINMORRY PETG Metallic @BBL A1M",
+      "base": "Generic PETG @BBL A1M",
+      "setting_id": "TMS0C84D",
+      "source": "Metallic PETG (A1 mini).json"
+    },
+    {
+      "name": "TINMORRY PETG Metallic @BBL A2L",
+      "base": "Generic PETG @BBL A2L",
+      "setting_id": "TMS11E52",
+      "source": "Tinmorry-Bambu_BambuStudio/A2L/TINMORRY PETG Metallic.bbsflmt:TINMORRY/TINMORRY PETG Metallic @Bambu Lab A2L 0.4 nozzle.json"
+    },
+    {
+      "name": "TINMORRY PETG Metallic @BBL H2C",
+      "base": "Generic PETG @BBL H2C 0.4 nozzle",
+      "setting_id": "TMSD17C4",
+      "source": "PETG-Metallic(H2C-Bambu-TINMORRY).json"
+    },
+    {
+      "name": "TINMORRY PETG Metallic @BBL H2S",
+      "base": "Generic PETG @BBL H2S",
+      "setting_id": "TMS9A473",
+      "source": "Metallic PETG (H2S-Bambu-TINMORRY).json"
+    },
+    {
+      "name": "TINMORRY PETG Metallic @BBL P2S",
+      "base": "Generic PETG @BBL P2S",
+      "setting_id": "TMS71C39",
+      "source": "X2D/0.4mm/TINMORRY PETG Metallic.bbsflmt:TINMORRY/TINMORRY PETG Metallic @Bambu Lab P2S 0.4 nozzle.json"
+    },
+    {
+      "name": "TINMORRY PETG Metallic @BBL X1C",
+      "base": "Generic PETG",
+      "setting_id": "TMS3E93D",
+      "source": "Metallic PETG (P1S P1P X1C).json"
+    },
+    {
+      "name": "TINMORRY PETG Metallic @BBL X2D",
+      "base": "Generic PETG @BBL X2D",
+      "setting_id": "TMSC9F5A",
+      "source": "X2D/0.4mm/TINMORRY PETG Metallic.bbsflmt:TINMORRY/TINMORRY PETG Metallic @Bambu Lab X2D 0.4 nozzle.json"
+    },
+    {
+      "name": "TINMORRY PETG Sparkly @BBL P2S",
+      "base": "Generic PETG @BBL P2S",
+      "setting_id": "TMS74BC6",
+      "source": "Sparkly  PETG(P2S-Bambu-TINMORRY).json"
+    },
+    {
+      "name": "TINMORRY PETG Sparkly @BBL X2D",
+      "base": "Generic PETG @BBL X2D",
+      "setting_id": "TMS5D819",
+      "source": "X2D/0.4mm/TINMORRY PETG Sparkly.bbsflmt:TINMORRY/TINMORRY PETG Sparkly @Bambu Lab X2D 0.4 nozzle.json"
+    },
+    {
+      "name": "TINMORRY PETG-CF @BBL A1",
+      "base": "Generic PETG-CF @BBL A1",
+      "setting_id": "TMS202FA",
+      "source": "PETG  CF(A1-Bambu-TINMORRY).json"
+    },
+    {
+      "name": "TINMORRY PETG-CF @BBL A1M",
+      "base": "Generic PETG-CF @BBL A1M",
+      "setting_id": "TMS68CAE",
+      "source": "PETG  CF(A1mini-Bambu-TINMORRY).json"
+    },
+    {
+      "name": "TINMORRY PETG-CF @BBL H2C",
+      "base": "Generic PETG-CF @BBL H2C 0.4 nozzle",
+      "setting_id": "TMS4772B",
+      "source": "PETG-CF(H2C-Bambu-TINMORRY).json"
+    },
+    {
+      "name": "TINMORRY PETG-CF @BBL H2D",
+      "base": "Generic PETG-CF @BBL H2D",
+      "setting_id": "TMSD5377",
+      "source": "PETG-CF(H2D-Bambu-TINMORRY).json"
+    },
+    {
+      "name": "TINMORRY PETG-CF @BBL H2S",
+      "base": "Generic PETG-CF @BBL H2S",
+      "setting_id": "TMS31CA1",
+      "source": "Tinmorry-Bambu_BambuStudio/H2S/TINMORRY PETG CF.bbsflmt:TINMORRY/TINMORRY PETG CF @Bambu Lab H2S 0.4 nozzle.json"
+    },
+    {
+      "name": "TINMORRY PETG-CF @BBL P1P",
+      "base": "Generic PETG-CF @BBL P1P",
+      "setting_id": "TMSD2F3D",
+      "source": "PETG  CF(P1P-Bambu-TINMORRY).json"
+    },
+    {
+      "name": "TINMORRY PETG-CF @BBL P2S",
+      "base": "Generic PETG-CF @BBL P2S",
+      "setting_id": "TMS57FBC",
+      "source": "PETG-CF(P2S-Bambu-TINMORRY).json"
+    },
+    {
+      "name": "TINMORRY PETG-CF @BBL X1C",
+      "base": "Generic PETG-CF @BBL X1C",
+      "setting_id": "TMS92708",
+      "source": "PETG CF(X1C P1S X1-Bambu-TINMORRY).json"
+    },
+    {
+      "name": "TINMORRY PETG-CF @BBL X2D",
+      "base": "Generic PETG-CF @BBL X2D",
+      "setting_id": "TMS37016",
+      "source": "X2D/0.4mm/TINMORRY PETG CF.bbsflmt:TINMORRY/TINMORRY PETG CF @Bambu Lab X2D 0.4 nozzle.json"
+    },
+    {
+      "name": "TINMORRY PETG-GF @BBL A1",
+      "base": "Generic PETG @BBL A1",
+      "setting_id": "TMS78A35",
+      "source": "PETG GF(A1-Bambu-TINMORRY).json"
+    },
+    {
+      "name": "TINMORRY PETG-GF @BBL A1M",
+      "base": "Generic PETG @BBL A1M",
+      "setting_id": "TMS2C155",
+      "source": "PETG GF(A1mini-Bambu-TINMORRY).json"
+    },
+    {
+      "name": "TINMORRY PETG-GF @BBL H2C",
+      "base": "Generic PETG-CF @BBL H2C 0.4 nozzle",
+      "setting_id": "TMSB690D",
+      "source": "PETG-GF(H2C-Bambu-TINMORRY).json"
+    },
+    {
+      "name": "TINMORRY PETG-GF @BBL H2D",
+      "base": "Generic PETG-CF @BBL H2D",
+      "setting_id": "TMS2CF68",
+      "source": "PETG-GF(H2D-Bambu-TINMORRY).json"
+    },
+    {
+      "name": "TINMORRY PETG-GF @BBL H2S",
+      "base": "Generic PETG-CF @BBL H2S",
+      "setting_id": "TMS58CE3",
+      "source": "PETG-GF(H2S-Bambu-TINMORRY).json"
+    },
+    {
+      "name": "TINMORRY PETG-GF @BBL P2S",
+      "base": "Generic PETG @BBL P2S",
+      "setting_id": "TMSB87D3",
+      "source": "X2D/0.4mm/TINMORRY PETG GF.bbsflmt:TINMORRY/TINMORRY PETG GF @Bambu Lab P2S 0.4 nozzle.json"
+    },
+    {
+      "name": "TINMORRY PETG-GF @BBL X1C",
+      "base": "Generic PETG",
+      "setting_id": "TMS98684",
+      "source": "PETG GF(P1P P1S X1 X1C-Bambu-TINMORRY.json"
+    },
+    {
+      "name": "TINMORRY PETG-GF @BBL X2D",
+      "base": "Generic PETG @BBL X2D",
+      "setting_id": "TMS1FEB3",
+      "source": "X2D/0.4mm/TINMORRY PETG GF.bbsflmt:TINMORRY/TINMORRY PETG GF @Bambu Lab X2D 0.4 nozzle.json"
+    },
+    {
+      "name": "TINMORRY PLA @BBL A1",
+      "base": "Generic PLA @BBL A1",
+      "setting_id": "TMS240DB",
+      "source": "PLA(A1-Bambu-TINMORRY).json"
+    },
+    {
+      "name": "TINMORRY PLA @BBL A1M",
+      "base": "Generic PLA @BBL A1M",
+      "setting_id": "TMS2165E",
+      "source": "PLA(A1mini-Bambu-TINMORRY).json"
+    },
+    {
+      "name": "TINMORRY PLA @BBL P1P",
+      "base": "Generic PLA @BBL P1P",
+      "setting_id": "TMS2A1E7",
+      "source": "PLA(P1P-Bambu-TINMORRY).json"
+    },
+    {
+      "name": "TINMORRY PLA @BBL X1C",
+      "base": "Generic PLA",
+      "setting_id": "TMS5B417",
+      "source": "PLA( P1S X1 X1C-Bambu-TINMORRY).json"
+    },
+    {
+      "name": "TINMORRY PLA Galaxy @BBL A1",
+      "base": "Generic PLA @BBL A1",
+      "setting_id": "TMS702CB",
+      "source": "Galaxy PLA(A1-Bambu-TINMORRY).json"
+    },
+    {
+      "name": "TINMORRY PLA Galaxy @BBL P2S",
+      "base": "Generic PLA @BBL P2S",
+      "setting_id": "TMS66F0E",
+      "source": "Galaxy PLA(P2S-Bambu-TINMORRY).json"
+    },
+    {
+      "name": "TINMORRY PLA Matte @BBL A1",
+      "base": "Generic PLA @BBL A1",
+      "setting_id": "TMSEDA64",
+      "source": "PLA Matte(A1-Bambu-TINMORRY).json"
+    },
+    {
+      "name": "TINMORRY PLA Matte @BBL A1M",
+      "base": "Generic PLA @BBL A1M",
+      "setting_id": "TMS3D241",
+      "source": "PLA Matte(A1mini-Bambu-TINMORRY).json"
+    },
+    {
+      "name": "TINMORRY PLA Matte @BBL H2D",
+      "base": "Generic PLA @BBL H2D",
+      "setting_id": "TMSF2698",
+      "source": "Tinmorry-Bambu_BambuStudio/H2D/TINMORRY PLA Matte，.bbsflmt:TINMORRY/TINMORRY PLA Matte∩╝î @Bambu Lab H2D 0.4 nozzle.json"
+    },
+    {
+      "name": "TINMORRY PLA Matte @BBL H2S",
+      "base": "Generic PLA @BBL H2S",
+      "setting_id": "TMSA671F",
+      "source": "PLA Matte(H2S-Bambu-TINMORRY).json"
+    },
+    {
+      "name": "TINMORRY PLA Matte @BBL P1P",
+      "base": "Generic PLA @BBL P1P",
+      "setting_id": "TMSDB69E",
+      "source": "PLA Matte(P1P-Bambu-TINMORRY).json"
+    },
+    {
+      "name": "TINMORRY PLA Matte @BBL P2S",
+      "base": "Generic PLA @BBL P2S",
+      "setting_id": "TMS8AA4B",
+      "source": "Matte PLA(P2S-Bambu-TINMORRY).json"
+    },
+    {
+      "name": "TINMORRY PLA Matte @BBL X1C",
+      "base": "Generic PLA",
+      "setting_id": "TMS57B48",
+      "source": "PLA Matte(P1S X1 X1C-Bambu-TINMORRY).json"
+    },
+    {
+      "name": "TINMORRY PLA Matte @BBL X2D",
+      "base": "Generic PLA @BBL X2D",
+      "setting_id": "TMS9C86D",
+      "source": "X2D/0.4mm/TINMORRY PLA matte.bbsflmt:TINMORRY/TINMORRY PLA matte @Bambu Lab X2D 0.4 nozzle.json"
+    },
+    {
+      "name": "TINMORRY PLA Metallic @BBL P1S",
+      "base": "Generic PLA",
+      "setting_id": "TMSF6D2D",
+      "source": "dl/TINMORRY-filament-profile-for-Bambu-printers/PLA Metallic(P1S-Bambu-TINMORRY).bbsflmt:TINMORRY/TINMORRY PLA Melallic @Bambu Lab P1S 0.4 nozzle.json"
+    },
+    {
+      "name": "TINMORRY PLA Rapid @BBL A2L",
+      "base": "Generic PLA @BBL A2L",
+      "setting_id": "TMS48160",
+      "source": "Tinmorry-Bambu_BambuStudio/A2L/TINMORRY PLA Rapid.bbsflmt:TINMORRY/TINMORRY PLA Rapid @Bambu Lab A2L 0.4 nozzle.json"
+    },
+    {
+      "name": "TINMORRY PLA Rapid @BBL H2C",
+      "base": "Generic PLA @BBL H2C",
+      "setting_id": "TMS234F0",
+      "source": "Tinmorry-Bambu_BambuStudio/H2C/TINMORRY PLA Rapid.bbsflmt:TINMORRY/TINMORRY PLA Rapid @Bambu Lab H2C 0.4 nozzle.json"
+    },
+    {
+      "name": "TINMORRY PLA Rapid @BBL H2S",
+      "base": "Generic PLA @BBL H2S",
+      "setting_id": "TMSBD01A",
+      "source": "Tinmorry-Bambu_BambuStudio/H2S/TINMORRY PLA Rapid.bbsflmt:TINMORRY/TINMORRY PLA Rapid @Bambu Lab H2S 0.4 nozzle.json"
+    },
+    {
+      "name": "TINMORRY PLA Rapid @BBL P2S",
+      "base": "Generic PLA @BBL P2S",
+      "setting_id": "TMS547AC",
+      "source": "Tinmorry-Bambu_BambuStudio/P2S/TINMORRY PLA Rapid.bbsflmt:TINMORRY/TINMORRY PLA Rapid @Bambu Lab P2S 0.4 nozzle.json"
+    },
+    {
+      "name": "TINMORRY PLA Silk @BBL A1",
+      "base": "Generic PLA Silk @BBL A1",
+      "setting_id": "TMS7C370",
+      "source": "PLA Silk (A1-Bambu-TINMORRY).json"
+    },
+    {
+      "name": "TINMORRY PLA Silk @BBL A1M",
+      "base": "Generic PLA Silk @BBL A1M",
+      "setting_id": "TMS8C067",
+      "source": "PLA Silk(A1mini-Bambu-TINMORRY).json"
+    },
+    {
+      "name": "TINMORRY PLA Silk @BBL A2L",
+      "base": "Generic PLA @BBL A2L",
+      "setting_id": "TMSD4B6E",
+      "source": "Tinmorry-Bambu_BambuStudio/A2L/TINMORRY PLA Silk.bbsflmt:TINMORRY/TINMORRY PLA Silk @Bambu Lab A2L 0.4 nozzle.json"
+    },
+    {
+      "name": "TINMORRY PLA Silk @BBL H2C",
+      "base": "Generic PLA Silk @BBL H2C 0.4 nozzle",
+      "setting_id": "TMS520B7",
+      "source": "PLA-Silk(H2C-Bambu-TINMORRY).json"
+    },
+    {
+      "name": "TINMORRY PLA Silk @BBL H2S",
+      "base": "Generic PLA Silk @BBL H2S",
+      "setting_id": "TMS14FFA",
+      "source": "Silk PLA(H2S-Bambu-TINMORRY).json"
+    },
+    {
+      "name": "TINMORRY PLA Silk @BBL P1P",
+      "base": "Generic PLA Silk @BBL P1P",
+      "setting_id": "TMSEC5B6",
+      "source": "PLA Silk(P1P-Bambu-TINMORRY).json"
+    },
+    {
+      "name": "TINMORRY PLA Silk @BBL X1C",
+      "base": "Generic PLA Silk",
+      "setting_id": "TMS4CFDF",
+      "source": "PLA Silk(P1S X1 X1C-Bambu-TINMORRY).json"
+    },
+    {
+      "name": "TINMORRY PLA Silk @BBL X2D",
+      "base": "Generic PLA @BBL X2D",
+      "setting_id": "TMS8FCA3",
+      "source": "X2D/0.4mm/TINMORRY PLA SILK.bbsflmt:TINMORRY/TINMORRY PLA SILK @Bambu Lab X2D 0.4 nozzle.json"
+    },
+    {
+      "name": "TINMORRY PLA-CF @BBL A1",
+      "base": "Generic PLA-CF @BBL A1",
+      "setting_id": "TMS106A5",
+      "source": "PLA-CF(A1-Bambu-TINMORRY).json"
+    },
+    {
+      "name": "TINMORRY PLA-CF @BBL A1M",
+      "base": "Generic PLA-CF @BBL A1M",
+      "setting_id": "TMSE0AC7",
+      "source": "PLA-CF(A1mini-Bambu-TINMORRY).json"
+    },
+    {
+      "name": "TINMORRY PLA-CF @BBL H2C",
+      "base": "Generic PLA-CF @BBL H2C",
+      "setting_id": "TMSEE474",
+      "source": "Tinmorry-Bambu_BambuStudio/H2C/TINMORRY PLA CF.bbsflmt:TINMORRY/TINMORRY PLA CF @Bambu Lab H2C 0.4 nozzle.json"
+    },
+    {
+      "name": "TINMORRY PLA-CF @BBL H2D",
+      "base": "Generic PLA-CF @BBL H2D",
+      "setting_id": "TMS77F38",
+      "source": "PLA-CF(H2D-Bambu-TINMORRY).json"
+    },
+    {
+      "name": "TINMORRY PLA-CF @BBL P1P",
+      "base": "Generic PLA-CF @BBL P1P",
+      "setting_id": "TMS94375",
+      "source": "PLA-CF(P1P-Bambu-TINMORRY).json"
+    },
+    {
+      "name": "TINMORRY PLA-CF @BBL X1C",
+      "base": "Generic PLA-CF",
+      "setting_id": "TMSEE2DA",
+      "source": "PLA-CF(P1S X1 X1C-Bambu-TINMORRY).json"
+    },
+    {
+      "name": "TINMORRY PP-CF @BBL H2C",
+      "base": "Generic PP-CF @BBL H2C",
+      "setting_id": "TMSC9525",
+      "source": "Tinmorry-Bambu_BambuStudio/H2C/TINMORRY PP CF.bbsflmt:TINMORRY/TINMORRY PP CF @Bambu Lab H2C 0.4 nozzle.json"
+    },
+    {
+      "name": "TINMORRY PP-CF @BBL P2S",
+      "base": "Generic PP-CF @BBL P2S",
+      "setting_id": "TMSD4FAA",
+      "source": "Tinmorry-Bambu_BambuStudio/P2S/TINMORRY PP-CF `.bbsflmt:TINMORRY/TINMORRY PP-CF ` @Bambu Lab P2S 0.4 nozzle.json"
+    },
+    {
+      "name": "TINMORRY PP-CF @BBL X1C",
+      "base": "Generic PETG",
+      "setting_id": "TMS3FF46",
+      "source": "PP-CF (P1S  P1P  X1C).json"
+    },
+    {
+      "name": "TINMORRY TPU 95A @BBL A1",
+      "base": "Bambu TPU 95A @BBL A1",
+      "setting_id": "TMS7A097",
+      "source": "TPU(A1-Bambu-TINMORRY).json"
+    },
+    {
+      "name": "TINMORRY TPU 95A @BBL A1M",
+      "base": "Generic TPU @BBL A1M",
+      "setting_id": "TMS43282",
+      "source": "Tinmorry-Bambu_BambuStudio/A1mini/TINMORRY TPU 95A.bbsflmt:TINMORRY/TINMORRY TPU 95A @Bambu Lab A1 mini 0.4 nozzle.json"
+    },
+    {
+      "name": "TINMORRY TPU 95A @BBL A2L",
+      "base": "Generic TPU @BBL A2L",
+      "setting_id": "TMS23D7B",
+      "source": "Tinmorry-Bambu_BambuStudio/A2L/TINMORRY TPU 95A.bbsflmt:TINMORRY/TINMORRY TPU 95A @Bambu Lab A2L 0.4 nozzle.json"
+    },
+    {
+      "name": "TINMORRY TPU 95A @BBL H2C",
+      "base": "Generic TPU @BBL H2C",
+      "setting_id": "TMS77657",
+      "source": "Tinmorry-Bambu_BambuStudio/H2C/TINMORRY TPU 95A.bbsflmt:TINMORRY/TINMORRY TPU 95A @Bambu Lab H2C 0.4 nozzle.json"
+    },
+    {
+      "name": "TINMORRY TPU 95A @BBL H2D",
+      "base": "Generic TPU @BBL H2D",
+      "setting_id": "TMSD468A",
+      "source": "TPU95A(H2D-Bambu-TINMORRY).json"
+    },
+    {
+      "name": "TINMORRY TPU 95A @BBL H2S",
+      "base": "Generic TPU @BBL H2S",
+      "setting_id": "TMS87581",
+      "source": "Tinmorry-Bambu_BambuStudio/H2S/TINMORRY TPU 95A.bbsflmt:TINMORRY/TINMORRY TPU 95A @Bambu Lab H2S 0.4 nozzle.json"
+    },
+    {
+      "name": "TINMORRY TPU 95A @BBL P1P",
+      "base": "Bambu TPU 95A @BBL P1P",
+      "setting_id": "TMS7C8D5",
+      "source": "TPU(P1P-Bambu-TINMORRY).json"
+    },
+    {
+      "name": "TINMORRY TPU 95A @BBL P2S",
+      "base": "Generic TPU @BBL P2S",
+      "setting_id": "TMSC42AC",
+      "source": "Tinmorry-Bambu_BambuStudio/P2S/TINMORRY TPU 95A.bbsflmt:TINMORRY/TINMORRY TPU 95A @Bambu Lab P2S 0.4 nozzle.json"
+    },
+    {
+      "name": "TINMORRY TPU 95A @BBL X1C",
+      "base": "Bambu TPU 95A @BBL X1C",
+      "setting_id": "TMS90305",
+      "source": "TPU(P1S X1 X1C-Bambu-TINMORRY).json"
+    },
+    {
+      "name": "TINMORRY TPU 95A @BBL X2D",
+      "base": "Generic TPU @BBL X2D",
+      "setting_id": "TMSBC2E0",
+      "source": "X2D/0.4mm/TINMORRY TPU 95A.bbsflmt:TINMORRY/TINMORRY TPU 95A @Bambu Lab X2D 0.4 nozzle.json"
+    },
+    {
+      "name": "TINMORRY TPU-GF @BBL A1M",
+      "base": "Generic TPU @BBL A1M",
+      "setting_id": "TMSB3E2D",
+      "source": "Tinmorry-Bambu_BambuStudio/A1mini/TINMORRY TPU GF.bbsflmt:TINMORRY/TINMORRY TPU GF @Bambu Lab A1 mini 0.4 nozzle.json"
+    },
+    {
+      "name": "TINMORRY TPU-GF @BBL P2S",
+      "base": "Bambu TPU 95A @BBL P2S",
+      "setting_id": "TMSA5E3F",
+      "source": "TPU-GF(P2S-Bambu-TINMORRY).json"
+    },
+    {
+      "name": "TINMORRY TPU-GF @BBL X1C",
+      "base": "Bambu TPU 95A @BBL X1C",
+      "setting_id": "TMS4AAB5",
+      "source": "TPU-GF(P1S,X1C-Bambu-TINMORRY).json"
+    }
+  ],
+  "skipped": [
+    {
+      "source": "PETG-CF(X1E-Bambu-TINMORRY).json",
+      "reason": "duplicate name TINMORRY PETG-CF @BBL X1C"
+    },
+    {
+      "source": "PETG-GF(P1S0.6-Bambu-TINMORRY).json",
+      "reason": "duplicate name TINMORRY PETG-GF @BBL X1C"
+    },
+    {
+      "source": "TPU-GF(X1E-Bambu-TINMORRY).json",
+      "reason": "duplicate name TINMORRY TPU-GF @BBL X1C"
+    },
+    {
+      "source": "X2D/0.4mm/TINMORRY TPU 95A.bbsflmt:TINMORRY/TINMORRY TPU 95A @Bambu Lab P2S 0.4 nozzle.json",
+      "reason": "duplicate name TINMORRY TPU 95A @BBL P2S"
+    }
+  ],
+  "dropped_keys": {},
+  "sources": {
+    "TINMORRY/TINMORRY-filament-profile-for-Bambu-printers": "dfbb1a1bc51c2c182ec56a73db44c2c1759df4b5",
+    "TINMORRY/Tinmorry-Bambu_BambuStudio": "0a6b03a29fa4780b7471b8eddaee29748720bf4c"
+  }
+}

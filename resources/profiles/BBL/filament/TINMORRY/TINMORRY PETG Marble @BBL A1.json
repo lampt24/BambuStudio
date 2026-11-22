@@ -1,0 +1,26 @@
+{
+    "type": "filament",
+    "name": "TINMORRY PETG Marble @BBL A1",
+    "inherits": "Generic PETG @BBL A1",
+    "from": "system",
+    "setting_id": "TMSD0EE8",
+    "instantiation": "true",
+    "filament_vendor": [
+        "TINMORRY"
+    ],
+    "fan_min_speed": [
+        "50"
+    ],
+    "filament_max_volumetric_speed": [
+        "12"
+    ],
+    "nozzle_temperature": [
+        "240"
+    ],
+    "nozzle_temperature_initial_layer": [
+        "245"
+    ],
+    "reduce_fan_stop_start_freq": [
+        "0"
+    ]
+}

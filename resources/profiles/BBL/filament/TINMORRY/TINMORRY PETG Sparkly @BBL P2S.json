@@ -1,0 +1,32 @@
+{
+    "type": "filament",
+    "name": "TINMORRY PETG Sparkly @BBL P2S",
+    "inherits": "Generic PETG @BBL P2S",
+    "from": "system",
+    "setting_id": "TMS74BC6",
+    "instantiation": "true",
+    "filament_vendor": [
+        "TINMORRY"
+    ],
+    "filament_extruder_variant": [
+        "Direct Drive Standard",
+        "Direct Drive High Flow"
+    ],
+    "nozzle_temperature": [
+        "250",
+        "nil"
+    ],
+    "nozzle_temperature_initial_layer": [
+        "250",
+        "nil"
+    ],
+    "nozzle_temperature_range_low": [
+        "240"
+    ],
+    "textured_plate_temp": [
+        "80"
+    ],
+    "textured_plate_temp_initial_layer": [
+        "80"
+    ]
+}

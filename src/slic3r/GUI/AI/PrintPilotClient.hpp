@@ -18,9 +18,12 @@ namespace Slic3r { namespace GUI { namespace AI {
 // A single setting change proposed by the server.
 struct SettingChange {
     std::string key;
-    std::string old_value;    // stringified; informational only
-    std::string new_value;    // stringified numeric from allowlist
+    std::string old_value;    // stringified ("0.2", "1", "tree(auto)")
+    std::string new_value;    // stringified value from the allowlists
     std::string reason;
+    std::string evidence;     // measured data / rule the server says the change is based on
+    std::string scope = "print";  // "print" preset or "filament" preset (settings_v2)
+    int         filament_index = 0;  // 1-based filament slot for scope == "filament"
 };
 
 // Result delivered to the main thread.
@@ -46,6 +49,9 @@ using AnalysisDoneFn = std::function<void(AnalysisResult)>;
 // settings_json  : serialised DynamicPrintConfig, secrets already stripped.
 // objective      : "quality"|"strength"|"speed"|"economy".
 // trigger        : "manual"|"send".
+// plate_index    : 1-based plate being printed, 0 for the whole project.
+// printer_serial : selected printer (device manager), empty when none; lets the server
+//                  check the AMS/nozzle of the printer that will print.
 // done_fn        : called on the wx thread when complete or on error/cancel.
 // Returns a shared CancelToken that the caller can flip to .cancelled = true.
 std::shared_ptr<CancelToken> start_analysis(
@@ -55,6 +61,9 @@ std::shared_ptr<CancelToken> start_analysis(
     const std::string&       objective,
     const std::string&       trigger,
     const std::string&       filename,
+    int                      plate_index,
+    const std::string&       printer_serial,
+    const std::string&       slice_stats_json,   // "" when the plate is not sliced
     AnalysisDoneFn           done_fn);
 
 // Synchronous base64 encode of raw bytes; uses only stdlib.

@@ -1,0 +1,20 @@
+{
+    "type": "filament",
+    "name": "TINMORRY PAHT-CF @BBL X1C",
+    "inherits": "Generic PA-CF",
+    "from": "system",
+    "setting_id": "TMS134BB",
+    "instantiation": "true",
+    "filament_vendor": [
+        "TINMORRY"
+    ],
+    "fan_max_speed": [
+        "40"
+    ],
+    "fan_min_speed": [
+        "20"
+    ],
+    "filament_max_volumetric_speed": [
+        "7"
+    ]
+}

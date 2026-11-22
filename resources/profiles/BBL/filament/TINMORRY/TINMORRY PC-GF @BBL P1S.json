@@ -1,0 +1,29 @@
+{
+    "type": "filament",
+    "name": "TINMORRY PC-GF @BBL P1S",
+    "inherits": "Generic PC @BBL P1S",
+    "from": "system",
+    "setting_id": "TMSDDB93",
+    "instantiation": "true",
+    "filament_vendor": [
+        "TINMORRY"
+    ],
+    "fan_max_speed": [
+        "40"
+    ],
+    "filament_extruder_variant": [
+        "Direct Drive Standard"
+    ],
+    "filament_flow_ratio": [
+        "0.97"
+    ],
+    "filament_max_volumetric_speed": [
+        "10"
+    ],
+    "nozzle_temperature_initial_layer": [
+        "280"
+    ],
+    "slow_down_layer_time": [
+        "12"
+    ]
+}

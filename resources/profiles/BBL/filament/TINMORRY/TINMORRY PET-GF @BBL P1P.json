@@ -1,0 +1,26 @@
+{
+    "type": "filament",
+    "name": "TINMORRY PET-GF @BBL P1P",
+    "inherits": "Bambu PET-CF @BBL P1P",
+    "from": "system",
+    "setting_id": "TMSEA8EA",
+    "instantiation": "true",
+    "filament_vendor": [
+        "TINMORRY"
+    ],
+    "fan_cooling_layer_time": [
+        "10"
+    ],
+    "fan_max_speed": [
+        "50"
+    ],
+    "fan_min_speed": [
+        "30"
+    ],
+    "filament_extruder_variant": [
+        "Direct Drive Standard"
+    ],
+    "slow_down_layer_time": [
+        "5"
+    ]
+}

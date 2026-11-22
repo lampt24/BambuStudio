@@ -83,6 +83,29 @@ class TestNormalize(unittest.TestCase):
         self.assertEqual(t["remaining_min"], 6)
         self.assertEqual(t["job_name"], "vase")
 
+    def test_plate_index_from_gcode_file(self):
+        self.assertEqual(tm.normalize({"gcode_file": "/data/Metadata/plate_3.gcode"})["plate_index"], 3)
+        self.assertEqual(tm.normalize({"gcode_file": "Metadata/plate_12.gcode"})["plate_index"], 12)
+        for unknown in ("vase.3mf", "/sdcard/plate_x.gcode", "plate_0.gcode", 5, ""):
+            self.assertNotIn("plate_index", tm.normalize({"gcode_file": unknown}))
+
+    def test_plate_index_survives_partial_updates(self):
+        client = tm.TelemetryClient("192.0.2.1", "code")
+        client.merge(json.dumps({"print": {**self.REPORT, "gcode_file": "/data/Metadata/plate_2.gcode"}}).encode())
+        client.merge(json.dumps({"print": {"mc_percent": 99}}).encode())
+        self.assertEqual(client.snapshot()["plate_index"], 2)
+
+    def test_nozzle_and_serial(self):
+        t = tm.normalize({"nozzle_diameter": "0.4", "nozzle_type": "hardened_steel"})
+        self.assertEqual((t["nozzle_diameter"], t["nozzle_type"]), (0.4, "hardened_steel"))
+        bad = tm.normalize({"nozzle_diameter": "9", "nozzle_type": "<x>"})
+        self.assertNotIn("nozzle_diameter", bad)
+        self.assertNotIn("nozzle_type", bad)
+        client = tm.TelemetryClient("192.0.2.1", "code", serial="03919D123456789")
+        client.merge(json.dumps({"print": self.REPORT}).encode())
+        self.assertEqual(client.snapshot()["serial"], "03919D123456789")
+        self.assertNotIn("serial", tm.TelemetryClient("192.0.2.1", "code").snapshot())
+
     def test_status_mapping(self):
         self.assertEqual(tm.status_from({"gcode_state": "RUNNING"}), "printing")
         self.assertEqual(tm.status_from({"gcode_state": "PAUSE"}), "paused")

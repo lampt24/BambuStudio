@@ -1,0 +1,24 @@
+{
+    "type": "filament",
+    "name": "TINMORRY PET-CF/GF @BBL H2S",
+    "inherits": "Bambu PET-CF @BBL H2S",
+    "from": "system",
+    "setting_id": "TMS083EA",
+    "instantiation": "true",
+    "filament_vendor": [
+        "TINMORRY"
+    ],
+    "fan_cooling_layer_time": [
+        "10"
+    ],
+    "fan_min_speed": [
+        "50"
+    ],
+    "filament_extruder_variant": [
+        "Direct Drive Standard",
+        "Direct Drive High Flow"
+    ],
+    "slow_down_layer_time": [
+        "5"
+    ]
+}

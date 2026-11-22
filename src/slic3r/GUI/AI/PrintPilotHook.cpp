@@ -146,7 +146,9 @@ static bool run_flow_internal(Plater* plater, bool isall, const std::string& tri
     // Run the full flow (shows modal dialogs)
     DialogResult flow_result;
     try {
-        flow_result = run_printpilot_flow(plater, tmp_path.string(), trigger, objective);
+        // PartPlateList is 0-based; the service uses Studio's 1-based plater_id.
+        flow_result = run_printpilot_flow(plater, tmp_path.string(), trigger, objective,
+                                          plate_idx >= 0 ? plate_idx + 1 : 0);
     } catch (const std::exception& ex) {
         BOOST_LOG_TRIVIAL(error) << "PrintPilot: exception in flow: " << ex.what();
         wxMessageBox(_("PrintPilot analysis failed. The send was cancelled."),
